@@ -579,6 +579,7 @@
     selectedMonths = [];
     [...els.monthList.querySelectorAll('input')].forEach(i => i.checked = false);
     els.applyMonthsBtn.disabled = true;
+    els.monthPickerLabel.textContent = 'Selecionar meses…';
   });
 
   els.applyMonthsBtn.addEventListener('click', () => {
@@ -616,6 +617,7 @@
       i.checked = selectedMonths.includes(i.value);
     });
     els.applyMonthsBtn.disabled = selectedMonths.length === 0;
+    els.monthPickerLabel.textContent = selectedMonths.length ? rangeLabel(selectedMonths) : 'Selecionar meses…';
   }
 
   function setStatus(kind, text){
@@ -685,6 +687,7 @@
       input.addEventListener('change', () => {
         selectedMonths = [...els.monthList.querySelectorAll('input:checked')].map(i => i.value).sort();
         els.applyMonthsBtn.disabled = selectedMonths.length === 0;
+        els.monthPickerLabel.textContent = selectedMonths.length ? rangeLabel(selectedMonths) : 'Selecionar meses…';
       });
     });
   }
