@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Painel de Métricas — Sofia · Engel Advogados</title>
+<title>Relatório de Atendimento — Sofia | Engel Advogados</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -417,8 +417,8 @@
 
   <header>
     <div class="title-block">
-      <h1>Painel Sofia — Controladoria</h1>
-      <p>Engel Advogados · atendimento via IA</p>
+      <h1>Relatório de Atendimento — Sofia</h1>
+      <p>Engel Advogados</p>
     </div>
 
   </header>
@@ -738,9 +738,18 @@
     return `
       <div class="tile ${wide ? 'wide' : ''}">
         <div class="tile-label"><span class="sw" style="background:${colorVar}"></span>${label}</div>
-        <div class="tile-value">${value}</div>
+        <div class="tile-value">${total > 0 ? p + '%' : '—'}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${p}%; background:${colorVar};"></div></div>
-        <div class="tile-pct mono">${total > 0 ? p + '% do período' : '—'}</div>
+        <div class="tile-pct mono">${value} de ${total} bate-papos</div>
+      </div>`;
+  }
+
+  function tileTotal(label, value, caption, colorVar){
+    return `
+      <div class="tile">
+        <div class="tile-label"><span class="sw" style="background:${colorVar}"></span>${label}</div>
+        <div class="tile-value">${value}</div>
+        <div class="tile-pct mono">${caption}</div>
       </div>`;
   }
 
@@ -765,10 +774,10 @@
         </div>
         <div class="period-caption">${caption}</div>
         <div class="tiles">
-          ${tile('Sessões', m.total, m.total, COLORS.total)}
+          ${tileTotal('Bate-papos criados', m.total, 'no período', COLORS.total)}
           ${tileStatic('Em aberto', m.emAberto, 'aguardando resposta agora', COLORS.emAberto)}
-          ${tile('Concluídos', m.concluidos, m.total, COLORS.concluidos)}
-          ${tile('Transferidos', m.transferidos, m.total, COLORS.transferidos)}
+          ${tile('Bate-papos encerrados', m.concluidos, m.total, COLORS.concluidos)}
+          ${tile('Transferidos para atendimento humano', m.transferidos, m.total, COLORS.transferidos)}
           ${tile('Efetividade Sofia', m.efetividade, m.total, COLORS.efetividade, true)}
         </div>
       </div>`;
