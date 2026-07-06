@@ -1,0 +1,182 @@
+{
+  "name": "Engel Advogados — Publicar dados.json (Sofia, diário)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24,
+              "triggerAtHour": 6,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "3c9d1a10-0001-4c3c-a000-000000000001",
+      "name": "Agendamento (1x/dia)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        180,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1jInUuZnnTNfcZyp-2fgnB33Jjv7-TbONt9A8SoeBnsc",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "atendimentos",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "3c9d1a10-0002-4c3c-a000-000000000002",
+      "name": "Ler planilha (atendimentos)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        420,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "rIN5Z834LvgPLhez",
+          "name": "Mell - Advocacia Escalável - Acesso"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1jInUuZnnTNfcZyp-2fgnB33Jjv7-TbONt9A8SoeBnsc",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "mensagens",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "3c9d1a10-0003-4c3c-a000-000000000003",
+      "name": "Ler planilha (mensagens)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "rIN5Z834LvgPLhez",
+          "name": "Mell - Advocacia Escalável - Acesso"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// Gera dados.json (sessões da Sofia já classificadas, sem PII)\n// Publicado 1x/dia no GitHub Pages via node GitHub (edit file).\n// ============================================================\n\nconst CANAL_SOFIA = \"9870-0149\";\n\nfunction isDoCanal(title, canais) {\n  const t = String(title || '');\n  if (Array.isArray(canais)) return canais.some(c => t.includes(c));\n  return t.includes(canais);\n}\nfunction limparSistema(content) {\n  return String(content || '')\n    .replace(/\\[USER=\\d+\\s*REPLACE\\]/gi, '')\n    .replace(/\\[\\/USER\\]/gi, '');\n}\nfunction foiEncerrado(msgs, resolvedBy, finishedAt) {\n  const porMsg = msgs.some(m =>\n    String(m.author_type || '').toLowerCase() === 'sistema' && (\n      String(m.content).includes('encerrou a sessão') ||\n      String(m.content).toLowerCase().includes('encerrada automaticamente')\n    )\n  );\n  return porMsg\n    || (finishedAt != null && String(finishedAt).trim() !== '')\n    || String(resolvedBy || '').startsWith('encerrado_');\n}\nfunction foiTransferido(hadHuman, msgs) {\n  if (String(hadHuman || '').trim() === 'Sim') return true;\n  return msgs.some(m =>\n    String(m.author_type || '').toLowerCase() === 'sistema' &&\n    String(m.content).includes('transferiu a conversa para')\n  );\n}\nfunction sofiaFoiEfetiva(msgs) {\n  function isSofia(m) {\n    return String(m.author_name || '').toLowerCase() === 'sofia' &&\n           String(m.author_type || '').toLowerCase() !== 'sistema';\n  }\n  function isHumanoReal(m) {\n    const nome = String(m.author_name || '').toLowerCase();\n    const tipo = String(m.author_type || '').toLowerCase();\n    if (nome === 'sofia' || nome === 'laura') return false;\n    if (tipo === 'sistema') return false;\n    if (tipo === 'humano') return true;\n    if (tipo === 'ia') return false;\n    if (tipo === 'cliente') return true;\n    return false;\n  }\n  let lastIdx = -1;\n  for (let i = msgs.length - 1; i >= 0; i--) {\n    if (isSofia(msgs[i])) { lastIdx = i; break; }\n  }\n  if (lastIdx < 0) return false;\n  for (let i = lastIdx + 1; i < msgs.length; i++) {\n    if (isHumanoReal(msgs[i])) return false;\n  }\n  return true;\n}\n\n// ---- Dados recebidos dos nodes de leitura da planilha ----\nconst linhasAtendimentos = $('Ler planilha (atendimentos)').all().map(i => i.json);\nconst linhasMensagens = $('Ler planilha (mensagens)').all().map(i => i.json);\n\nconst linhasSofia = linhasAtendimentos.filter(r => isDoCanal(r.title, CANAL_SOFIA));\nconst sidsSofia = new Set(linhasSofia.map(r => String(r.session_id).replace(/\\.0$/, '')));\n\nconst msgsPorSessao = {};\nlinhasMensagens.forEach(r => {\n  const sid = String(r.session_id).replace(/\\.0$/, '');\n  if (!sidsSofia.has(sid)) return;\n  if (!msgsPorSessao[sid]) msgsPorSessao[sid] = [];\n  msgsPorSessao[sid].push({\n    author_type: String(r.author_type || ''),\n    author_name: String(r.author_name || ''),\n    content: String(r.content || ''),\n    sent_at: r.sent_at,\n  });\n});\nObject.values(msgsPorSessao).forEach(msgs => msgs.sort((a, b) => new Date(a.sent_at) - new Date(b.sent_at)));\n\nfunction getMsgs(sid) {\n  return msgsPorSessao[String(sid).replace(/\\.0$/, '')] || [];\n}\n\n// ---- Classificação por sessão (sem PII: nada de nome, telefone, texto) ----\nlet emAbertoAtual = 0;\nconst sessoes = [];\n\nlinhasSofia.forEach(r => {\n  if (!r.started_at) return; // sem data de início, não dá pra bucketizar no painel\n  const msgs = getMsgs(r.session_id);\n  const hadHuman = String(r.had_human || '').trim();\n  const finishedAt = r.finished_at;\n  const resolvedBy = String(r.resolved_by || '');\n\n  const concluido = foiEncerrado(msgs, resolvedBy, finishedAt);\n  const transferido = foiTransferido(hadHuman, msgs);\n  if (!concluido) emAbertoAtual++;\n\n  let efetivo;\n  if (msgs.length > 0) {\n    efetivo = sofiaFoiEfetiva(msgs);\n  } else {\n    efetivo = hadHuman === 'Não' &&\n      (resolvedBy === 'em_andamento_sofia' || resolvedBy === 'encerrado_sofia' || resolvedBy === 'ia_ou_sem_humano');\n  }\n\n  sessoes.push({\n    started_at: r.started_at,\n    concluido,\n    transferido,\n    efetivo,\n  });\n});\n\nconst payload = {\n  canal: CANAL_SOFIA,\n  sessoes,\n  emAbertoAtual,\n  atualizado_em: new Date().toISOString(),\n};\n\nreturn [{ json: { fileContent: JSON.stringify(payload) } }];\n"
+      },
+      "id": "3c9d1a10-0004-4c3c-a000-000000000004",
+      "name": "Gerar dados.json",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "resource": "file",
+        "operation": "edit",
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "advescalavel"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "painel-sofia-engel-advogados"
+        },
+        "filePath": "dados.json",
+        "fileContent": "={{ $json.fileContent }}",
+        "commitMessage": "Atualização automática de métricas Sofia"
+      },
+      "id": "3c9d1a10-0005-4c3c-a000-000000000005",
+      "name": "Publicar dados.json no GitHub",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        1140,
+        300
+      ],
+      "credentials": {
+        "githubApi": {
+          "id": "COLOQUE_O_ID_DA_CREDENCIAL_GITHUB",
+          "name": "GitHub - Painel Sofia (Engel)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Agendamento (1x/dia)": {
+      "main": [
+        [
+          {
+            "node": "Ler planilha (atendimentos)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler planilha (atendimentos)": {
+      "main": [
+        [
+          {
+            "node": "Ler planilha (mensagens)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler planilha (mensagens)": {
+      "main": [
+        [
+          {
+            "node": "Gerar dados.json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar dados.json": {
+      "main": [
+        [
+          {
+            "node": "Publicar dados.json no GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
