@@ -8,9 +8,19 @@
   var METRICS_URL = API_BASE + '/painel-sucesso-cliente-metricas';
   var AUDITORIA_URL = API_BASE + '/painel-sucesso-cliente-auditoria';
   var AUTO_REFRESH_MS = 3600000; // 1h — intencionalmente lento, para não mudar números durante reuniões/apresentações
-  var STALE_AFTER_MS = 75 * 60 * 1000; // só avisa "desatualizado" se passar bem do ciclo normal de 1h (ex.: timer travou)
-
+  var STALE_AFTER_MS = 75 * 60 * 1000;
   var PAGE_SIZE = 20;
+
+  var PERIODO_LABELS = {
+    hoje: 'hoje',
+    semana_atual: 'nesta semana',
+    semana_anterior: 'na semana anterior',
+    mes_atual: 'neste mês',
+    meses_retroativos: 'no período selecionado',
+    trimestre: 'no trimestre atual',
+    semestre: 'no semestre atual',
+    personalizado: 'no período selecionado'
+  };
 
   // -----------------------------------------------------------------------
   // Estado
@@ -18,13 +28,14 @@
   var state = {
     tab: 'visao',
     page: 1,
+    periodo: 'hoje',
+    meses: 2,
+    dataInicio: null,
+    dataFim: null,
     lastFetchAt: null,
     refreshTimer: null
   };
 
-  // -----------------------------------------------------------------------
-  // Utilidades de DOM
-  // -----------------------------------------------------------------------
   function $(id) { return document.getElementById(id); }
 
   function fmtNumber(n) {
@@ -55,28 +66,44 @@
   // Período selecionado
   // -----------------------------------------------------------------------
   function currentPeriodParams() {
-    var tipo = $('periodo-tipo').value;
-    var params = { tipo_periodo: tipo };
-    if (tipo === 'personalizado') {
-      params.data_inicio = $('periodo-inicio').value;
-      params.data_fim = $('periodo-fim').value;
-    } else if (tipo === 'meses_retroativos') {
-      params.meses = $('periodo-meses').value || '2';
+    var params = { tipo_periodo: state.periodo };
+    if (state.periodo === 'personalizado') {
+      params.data_inicio = state.dataInicio;
+      params.data_fim = state.dataFim;
+    } else if (state.periodo === 'meses_retroativos') {
+      params.meses = state.meses;
     }
     return params;
   }
 
   function toQueryString(params) {
     return Object.keys(params)
-      .filter(function (k) { return params[k] !== undefined && params[k] !== ''; })
+      .filter(function (k) { return params[k] !== undefined && params[k] !== null && params[k] !== ''; })
       .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); })
       .join('&');
   }
 
-  function updatePeriodFieldsVisibility() {
-    var tipo = $('periodo-tipo').value;
-    $('campo-meses').hidden = tipo !== 'meses_retroativos';
-    $('campo-custom').hidden = tipo !== 'personalizado';
+  function renderPeriodSelection() {
+    document.querySelectorAll('.segmented__opt').forEach(function (el) {
+      el.classList.toggle('is-active', el.dataset.periodo === state.periodo);
+    });
+    document.querySelectorAll('.chip').forEach(function (el) {
+      el.classList.toggle('is-active', el.dataset.periodo === state.periodo);
+    });
+    $('periodo-label').textContent = 'Dados ' + (PERIODO_LABELS[state.periodo] || 'do período');
+  }
+
+  function selectPeriod(tipo) {
+    state.periodo = tipo;
+    state.page = 1;
+    renderPeriodSelection();
+    closeAllPopovers();
+    loadActiveTab();
+  }
+
+  function closeAllPopovers() {
+    $('pop-meses').hidden = true;
+    $('pop-custom').hidden = true;
   }
 
   // -----------------------------------------------------------------------
@@ -89,6 +116,14 @@
     });
   }
 
+  function setConnection(ok) {
+    var dot = $('conn-dot');
+    var label = $('conn-label');
+    dot.classList.remove('is-ok', 'is-error');
+    dot.classList.add(ok ? 'is-ok' : 'is-error');
+    label.textContent = ok ? 'Conectado' : 'Erro de conexão';
+  }
+
   // -----------------------------------------------------------------------
   // Frescor dos dados
   // -----------------------------------------------------------------------
@@ -98,46 +133,29 @@
   }
 
   function renderFreshness() {
-    var el = $('freshness-indicator');
-    if (!state.lastFetchAt) { el.textContent = 'Carregando dados…'; return; }
+    var el = $('freshness-left');
+    if (!state.lastFetchAt) { el.textContent = 'carregando dados…'; return; }
     var secs = Math.round((Date.now() - state.lastFetchAt) / 1000);
     var label;
-    if (secs < 5) label = 'agora mesmo';
-    else if (secs < 60) label = 'há ' + secs + 's';
-    else label = 'há ' + Math.round(secs / 60) + ' min';
-    el.textContent = 'Painel atualizado ' + label + ' (atualiza a cada hora). Os dados no banco seguem o ciclo de coleta (~1 min) e de avaliação da Sofia (~5 min).';
+    if (secs < 5) label = 'dados de agora mesmo';
+    else if (secs < 60) label = 'dados de ' + secs + 's atrás';
+    else label = 'dados de ' + Math.round(secs / 60) + ' min atrás';
+    el.textContent = label;
     el.classList.toggle('is-stale', (Date.now() - state.lastFetchAt) > STALE_AFTER_MS);
   }
 
   setInterval(renderFreshness, 5000);
 
   // -----------------------------------------------------------------------
-  // Gauge (efetividade da Sofia)
-  // -----------------------------------------------------------------------
-  var GAUGE_CIRCUMFERENCE = 282.7;
-
-  function renderGauge(pct) {
-    var fill = $('gauge-fill');
-    var number = $('gauge-number');
-    if (pct === null || pct === undefined) {
-      fill.style.strokeDashoffset = String(GAUGE_CIRCUMFERENCE);
-      number.textContent = '—';
-      return;
-    }
-    var clamped = Math.max(0, Math.min(100, pct));
-    var offset = GAUGE_CIRCUMFERENCE * (1 - clamped / 100);
-    fill.style.strokeDashoffset = String(offset);
-    number.textContent = String(Math.round(clamped));
-
-    var color = 'var(--accent)';
-    if (clamped >= 70) color = 'var(--success)';
-    else if (clamped < 40) color = 'var(--warning)';
-    fill.style.stroke = color;
-  }
-
-  // -----------------------------------------------------------------------
   // Visão geral
   // -----------------------------------------------------------------------
+  function renderBar(elId, value, max) {
+    var el = $(elId);
+    if (!max || max <= 0) { el.style.width = '0%'; return; }
+    var pct = Math.max(0, Math.min(100, (value / max) * 100));
+    el.style.width = pct + '%';
+  }
+
   function loadMetrics() {
     $('visao-error').hidden = true;
     $('visao-empty').hidden = true;
@@ -146,21 +164,31 @@
 
     return fetchJson(url)
       .then(function (data) {
-        renderGauge(data.efetividade_sofia_pct);
+        setConnection(true);
+
+        var efetividade = data.efetividade_sofia_pct;
+        $('m-efetividade').textContent = (efetividade === null || efetividade === undefined) ? '—' : efetividade + '%';
+        renderBar('bar-efetividade', efetividade || 0, 100);
+
         $('m-em-aberto').textContent = fmtNumber(data.atendimentos_em_aberto);
-        $('m-concluidos').textContent = fmtNumber(data.atendimentos_concluidos);
         $('m-criados').textContent = fmtNumber(data.atendimentos_criados);
+        $('m-concluidos').textContent = fmtNumber(data.atendimentos_concluidos);
         $('m-transferido-sem-resposta').textContent = fmtNumber(data.transferidos_sem_resposta);
         $('m-sem-aceite').textContent = fmtNumber(data.colaborador_nao_aceitou);
+
+        var totalPeriodo = (data.atendimentos_concluidos || 0) + (data.atendimentos_criados || 0);
+        renderBar('bar-concluidos', data.atendimentos_concluidos || 0, totalPeriodo);
+        $('hint-concluidos').textContent = fmtNumber(data.atendimentos_concluidos) + ' de ' + fmtNumber(totalPeriodo) + ' atendimentos';
 
         var semDados = !data.atendimentos_em_aberto && !data.atendimentos_concluidos && !data.atendimentos_criados;
         $('visao-empty').hidden = !semDados;
         markFetched();
       })
       .catch(function (err) {
+        setConnection(false);
         var el = $('visao-error');
         el.hidden = false;
-        el.textContent = 'Não foi possível carregar as métricas agora (' + err.message + '). Tente atualizar em instantes.';
+        el.textContent = 'Não foi possível carregar as métricas agora (' + err.message + '). Tente novamente em instantes.';
       });
   }
 
@@ -202,6 +230,7 @@
 
     return fetchJson(url)
       .then(function (data) {
+        setConnection(true);
         var rows = data.atendimentos || [];
         var tbody = $('audit-tbody');
 
@@ -221,15 +250,16 @@
         markFetched();
       })
       .catch(function (err) {
+        setConnection(false);
         var el = $('auditoria-error');
         el.hidden = false;
-        el.textContent = 'Não foi possível carregar a auditoria agora (' + err.message + '). Tente atualizar em instantes.';
+        el.textContent = 'Não foi possível carregar a auditoria agora (' + err.message + '). Tente novamente em instantes.';
         $('audit-tbody').innerHTML = '';
       });
   }
 
   // -----------------------------------------------------------------------
-  // Orquestração de carregamento / abas
+  // Orquestração de abas
   // -----------------------------------------------------------------------
   function loadActiveTab() {
     if (state.tab === 'visao') return loadMetrics();
@@ -256,39 +286,57 @@
     state.refreshTimer = setInterval(loadActiveTab, AUTO_REFRESH_MS);
   }
 
-  function manualRefresh() {
-    var btn = $('atualizar-agora');
-    btn.classList.add('is-spinning');
-    loadActiveTab().finally(function () {
-      setTimeout(function () { btn.classList.remove('is-spinning'); }, 300);
+  // -----------------------------------------------------------------------
+  // Eventos — período
+  // -----------------------------------------------------------------------
+  document.querySelectorAll('.segmented__opt').forEach(function (el) {
+    el.addEventListener('click', function () { selectPeriod(el.dataset.periodo); });
+  });
+
+  document.querySelectorAll('.chip').forEach(function (el) {
+    el.addEventListener('click', function (evt) {
+      var tipo = el.dataset.periodo;
+      if (tipo === 'meses_retroativos') {
+        evt.stopPropagation();
+        $('pop-custom').hidden = true;
+        $('pop-meses').hidden = !$('pop-meses').hidden;
+        return;
+      }
+      if (tipo === 'personalizado') {
+        evt.stopPropagation();
+        $('pop-meses').hidden = true;
+        $('pop-custom').hidden = !$('pop-custom').hidden;
+        return;
+      }
+      selectPeriod(tipo);
     });
-  }
+  });
+
+  document.addEventListener('click', function (evt) {
+    if (!evt.target.closest('.chip-pop-wrap')) closeAllPopovers();
+  });
+
+  $('aplicar-meses').addEventListener('click', function (evt) {
+    evt.stopPropagation();
+    state.meses = Number($('input-meses').value) || 1;
+    selectPeriod('meses_retroativos');
+  });
+
+  $('aplicar-custom').addEventListener('click', function (evt) {
+    evt.stopPropagation();
+    var inicio = $('input-inicio').value;
+    var fim = $('input-fim').value;
+    if (!inicio || !fim) return;
+    state.dataInicio = inicio;
+    state.dataFim = fim;
+    selectPeriod('personalizado');
+  });
 
   // -----------------------------------------------------------------------
-  // Eventos
+  // Eventos — abas e paginação
   // -----------------------------------------------------------------------
   $('tab-visao').addEventListener('click', function () { switchTab('visao'); });
   $('tab-auditoria').addEventListener('click', function () { switchTab('auditoria'); });
-
-  $('periodo-tipo').addEventListener('change', function () {
-    updatePeriodFieldsVisibility();
-    if ($('periodo-tipo').value !== 'personalizado') {
-      state.page = 1;
-      loadActiveTab();
-    }
-  });
-
-  $('periodo-meses').addEventListener('change', function () {
-    state.page = 1;
-    loadActiveTab();
-  });
-
-  $('aplicar-periodo').addEventListener('click', function () {
-    state.page = 1;
-    loadActiveTab();
-  });
-
-  $('atualizar-agora').addEventListener('click', manualRefresh);
 
   $('pag-anterior').addEventListener('click', function () {
     if (state.page > 1) { state.page -= 1; loadAuditoria(); }
@@ -301,8 +349,7 @@
   // Inicialização
   // -----------------------------------------------------------------------
   function init() {
-    updatePeriodFieldsVisibility();
-    renderGauge(null);
+    renderPeriodSelection();
     loadActiveTab();
     restartAutoRefresh();
 
