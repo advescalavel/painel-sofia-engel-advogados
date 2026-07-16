@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vigia — Sucesso do Cliente</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="topbar__identity">
+      <span class="topbar__mark" aria-hidden="true"></span>
+      <div class="topbar__titles">
+        <h1 class="topbar__title">Vigia — Sucesso do Cliente</h1>
+        <p class="topbar__subtitle">Engel Advogados · supervisão da Sofia</p>
+      </div>
+    </div>
+
+    <div class="topbar__controls">
+      <div class="field field--period">
+        <label for="periodo-tipo">Período</label>
+        <select id="periodo-tipo">
+          <option value="mes_atual">Mês atual</option>
+          <option value="semana_atual">Semana atual</option>
+          <option value="semana_anterior">Semana anterior</option>
+          <option value="meses_retroativos">Meses retroativos</option>
+          <option value="trimestre">Trimestre (3 meses)</option>
+          <option value="semestre">Semestre (6 meses)</option>
+          <option value="personalizado">Data personalizada</option>
+        </select>
+      </div>
+
+      <div class="field field--meses" id="campo-meses" hidden>
+        <label for="periodo-meses">Nº de meses</label>
+        <input type="number" id="periodo-meses" min="1" max="24" value="2" />
+      </div>
+
+      <div class="field field--custom" id="campo-custom" hidden>
+        <label for="periodo-inicio">De</label>
+        <input type="date" id="periodo-inicio" />
+        <label for="periodo-fim">Até</label>
+        <input type="date" id="periodo-fim" />
+        <button class="btn btn--ghost" id="aplicar-periodo">Aplicar</button>
+      </div>
+
+      <button class="btn btn--icon" id="atualizar-agora" title="Atualizar agora" aria-label="Atualizar agora">
+        <svg viewBox="0 0 20 20" width="18" height="18" fill="none" aria-hidden="true"><path d="M16.5 10a6.5 6.5 0 1 1-2.1-4.8M16.5 3.5V8h-4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <p class="freshness" id="freshness-indicator">Carregando dados…</p>
+
+  <nav class="tabs" role="tablist" aria-label="Seções do painel">
+    <button class="tab is-active" id="tab-visao" role="tab" aria-selected="true" aria-controls="painel-visao">Visão geral</button>
+    <button class="tab" id="tab-auditoria" role="tab" aria-selected="false" aria-controls="painel-auditoria">Auditoria</button>
+  </nav>
+
+  <main>
+    <section id="painel-visao" class="panel" role="tabpanel" aria-labelledby="tab-visao">
+
+      <div class="hero-row">
+        <div class="gauge-card">
+          <div class="gauge" id="gauge">
+            <svg viewBox="0 0 200 120" width="220" height="132" aria-hidden="true">
+              <path class="gauge__track" d="M20,110 A90,90 0 0 1 180,110" />
+              <path class="gauge__fill" id="gauge-fill" d="M20,110 A90,90 0 0 1 180,110" />
+            </svg>
+            <div class="gauge__value">
+              <span class="gauge__number" id="gauge-number">—</span>
+              <span class="gauge__percent">%</span>
+            </div>
+          </div>
+          <div class="gauge-card__label">
+            <h2>Efetividade da Sofia</h2>
+            <p>Média do score de efetividade nos atendimentos avaliados no período — mede apenas a atuação da IA.</p>
+          </div>
+        </div>
+
+        <div class="cards-grid">
+          <article class="metric-card">
+            <span class="metric-card__label">Em aberto</span>
+            <span class="metric-card__value" id="m-em-aberto">—</span>
+            <span class="metric-card__hint">agora, sem filtro de período</span>
+          </article>
+          <article class="metric-card metric-card--positive">
+            <span class="metric-card__label">Concluídos</span>
+            <span class="metric-card__value" id="m-concluidos">—</span>
+            <span class="metric-card__hint">no período selecionado</span>
+          </article>
+          <article class="metric-card metric-card--positive">
+            <span class="metric-card__label">Criados</span>
+            <span class="metric-card__value" id="m-criados">—</span>
+            <span class="metric-card__hint">no período selecionado</span>
+          </article>
+          <article class="metric-card metric-card--alert">
+            <span class="metric-card__label">Transferido, sem resposta</span>
+            <span class="metric-card__value" id="m-transferido-sem-resposta">—</span>
+            <span class="metric-card__hint">agora, sem filtro de período</span>
+          </article>
+          <article class="metric-card metric-card--alert">
+            <span class="metric-card__label">Colaborador não aceitou</span>
+            <span class="metric-card__value" id="m-sem-aceite">—</span>
+            <span class="metric-card__hint">agora, sem filtro de período</span>
+          </article>
+        </div>
+      </div>
+
+      <p class="empty-state" id="visao-empty" hidden>Não há atendimentos de Sucesso do Cliente no período selecionado.</p>
+      <p class="error-state" id="visao-error" hidden></p>
+
+    </section>
+
+    <section id="painel-auditoria" class="panel" hidden role="tabpanel" aria-labelledby="tab-auditoria">
+
+      <div class="table-wrap">
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Atendimento</th>
+              <th>Avaliado em</th>
+              <th>Score</th>
+              <th>Info. processual</th>
+              <th>Alucinação</th>
+              <th>Insatisfação</th>
+              <th>Golpe</th>
+              <th>Transferência</th>
+              <th>Justificativa e ação recomendada</th>
+            </tr>
+          </thead>
+          <tbody id="audit-tbody">
+            <tr><td colspan="9" class="audit-table__loading">Carregando atendimentos…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="empty-state" id="auditoria-empty" hidden>Nenhum atendimento avaliado nesse período ainda.</p>
+      <p class="error-state" id="auditoria-error" hidden></p>
+
+      <div class="pagination" id="pagination" hidden>
+        <button class="btn btn--ghost" id="pag-anterior">← Anterior</button>
+        <span id="pag-info">Página 1</span>
+        <button class="btn btn--ghost" id="pag-proxima">Próxima →</button>
+      </div>
+
+    </section>
+  </main>
+
+</div>
+
+<script src="//api.bitrix24.com/b24.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
