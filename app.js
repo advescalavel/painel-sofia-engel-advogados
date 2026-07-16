@@ -1,9 +1,7 @@
 (function () {
   'use strict';
 
-  // -----------------------------------------------------------------------
   // Configuração
-  // -----------------------------------------------------------------------
   var API_BASE = 'https://webhook.prod.advocaciaescalaveldev.shop/webhook';
   var METRICS_URL = API_BASE + '/painel-sucesso-cliente-metricas';
   var AUDITORIA_URL = API_BASE + '/painel-sucesso-cliente-auditoria';
@@ -11,29 +9,33 @@
   var STALE_AFTER_MS = 75 * 60 * 1000;
   var PAGE_SIZE = 20;
 
+  // Preencher quando o link do chat de suporte for definido. Enquanto vazio, o botão fica desabilitado.
+  var SUPPORT_CHAT_URL = '';
+
+  var MESES_NOMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
   var PERIODO_LABELS = {
     hoje: 'hoje',
     semana_atual: 'nesta semana',
     semana_anterior: 'na semana anterior',
     mes_atual: 'neste mês',
-    meses_retroativos: 'no período selecionado',
+    mes_especifico: 'no mês selecionado',
     trimestre: 'no trimestre atual',
     semestre: 'no semestre atual',
     personalizado: 'no período selecionado'
   };
 
-  // -----------------------------------------------------------------------
   // Estado
-  // -----------------------------------------------------------------------
   var state = {
     tab: 'visao',
     page: 1,
     periodo: 'hoje',
-    meses: 2,
+    mes: null,
     dataInicio: null,
     dataFim: null,
     lastFetchAt: null,
-    refreshTimer: null
+    refreshTimer: null,
+    theme: 'dark'
   };
 
   function $(id) { return document.getElementById(id); }
@@ -62,16 +64,14 @@
     });
   }
 
-  // -----------------------------------------------------------------------
   // Período selecionado
-  // -----------------------------------------------------------------------
   function currentPeriodParams() {
     var params = { tipo_periodo: state.periodo };
     if (state.periodo === 'personalizado') {
       params.data_inicio = state.dataInicio;
       params.data_fim = state.dataFim;
-    } else if (state.periodo === 'meses_retroativos') {
-      params.meses = state.meses;
+    } else if (state.periodo === 'mes_especifico') {
+      params.mes = state.mes;
     }
     return params;
   }
@@ -90,7 +90,9 @@
     document.querySelectorAll('.chip').forEach(function (el) {
       el.classList.toggle('is-active', el.dataset.periodo === state.periodo);
     });
-    $('periodo-label').textContent = 'Dados ' + (PERIODO_LABELS[state.periodo] || 'do período');
+    var texto = 'Dados ' + (PERIODO_LABELS[state.periodo] || 'do período');
+    $('periodo-label').textContent = texto;
+    $('periodo-label-auditoria').textContent = texto;
   }
 
   function selectPeriod(tipo) {
@@ -102,13 +104,25 @@
   }
 
   function closeAllPopovers() {
-    $('pop-meses').hidden = true;
+    $('pop-mes').hidden = true;
     $('pop-custom').hidden = true;
   }
 
-  // -----------------------------------------------------------------------
+  function populateMonthSelect() {
+    var now = new Date();
+    var mesAtual = now.getMonth() + 1; // 1-indexed
+    var select = $('select-mes');
+    select.innerHTML = '';
+    for (var m = 1; m <= mesAtual; m++) {
+      var opt = document.createElement('option');
+      opt.value = String(m);
+      opt.textContent = MESES_NOMES[m - 1];
+      if (m === mesAtual) opt.selected = true;
+      select.appendChild(opt);
+    }
+  }
+
   // Rede
-  // -----------------------------------------------------------------------
   function fetchJson(url) {
     return fetch(url, { headers: { Accept: 'application/json' } }).then(function (res) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -124,9 +138,7 @@
     label.textContent = ok ? 'Conectado' : 'Erro de conexão';
   }
 
-  // -----------------------------------------------------------------------
   // Frescor dos dados
-  // -----------------------------------------------------------------------
   function markFetched() {
     state.lastFetchAt = Date.now();
     renderFreshness();
@@ -146,9 +158,7 @@
 
   setInterval(renderFreshness, 5000);
 
-  // -----------------------------------------------------------------------
   // Visão geral
-  // -----------------------------------------------------------------------
   function renderBar(elId, value, max) {
     var el = $(elId);
     if (!max || max <= 0) { el.style.width = '0%'; return; }
@@ -192,18 +202,21 @@
       });
   }
 
-  // -----------------------------------------------------------------------
   // Auditoria
-  // -----------------------------------------------------------------------
   function renderAuditRow(a) {
     var justificativa = a.justificativa_avaliacao
       ? '<strong>' + escapeHtml(a.acao_recomendada || 'Sem ação recomendada') + '</strong>' + escapeHtml(a.justificativa_avaliacao)
       : '<span>Ainda não avaliado.</span>';
 
+    var nomeCliente = escapeHtml(a.cliente || 'Não informado');
+    var clienteHtml = a.chat_id
+      ? '<a class="cell-session__name cell-session__link" href="https://engeladvogados.bitrix24.com.br/online/?IM_DIALOG=chat' + encodeURIComponent(a.chat_id) + '" target="_blank" rel="noopener">' + nomeCliente + '</a>'
+      : '<span class="cell-session__name cell-session__name--plain">' + nomeCliente + '</span>';
+
     return '' +
       '<tr>' +
         '<td class="cell-session">' +
-          '<span class="cell-session__name">' + escapeHtml(a.cliente || 'Não informado') + '</span>' +
+          clienteHtml +
           escapeHtml(a.session_id || '') +
         '</td>' +
         '<td>' + fmtDateTime(a.avaliado_em) + '</td>' +
@@ -258,9 +271,7 @@
       });
   }
 
-  // -----------------------------------------------------------------------
   // Orquestração de abas
-  // -----------------------------------------------------------------------
   function loadActiveTab() {
     if (state.tab === 'visao') return loadMetrics();
     return loadAuditoria();
@@ -286,9 +297,7 @@
     state.refreshTimer = setInterval(loadActiveTab, AUTO_REFRESH_MS);
   }
 
-  // -----------------------------------------------------------------------
   // Eventos — período
-  // -----------------------------------------------------------------------
   document.querySelectorAll('.segmented__opt').forEach(function (el) {
     el.addEventListener('click', function () { selectPeriod(el.dataset.periodo); });
   });
@@ -296,15 +305,17 @@
   document.querySelectorAll('.chip').forEach(function (el) {
     el.addEventListener('click', function (evt) {
       var tipo = el.dataset.periodo;
-      if (tipo === 'meses_retroativos') {
+      if (tipo === 'mes_especifico') {
         evt.stopPropagation();
         $('pop-custom').hidden = true;
-        $('pop-meses').hidden = !$('pop-meses').hidden;
+        var abrir = $('pop-mes').hidden;
+        if (abrir) populateMonthSelect();
+        $('pop-mes').hidden = !abrir;
         return;
       }
       if (tipo === 'personalizado') {
         evt.stopPropagation();
-        $('pop-meses').hidden = true;
+        $('pop-mes').hidden = true;
         $('pop-custom').hidden = !$('pop-custom').hidden;
         return;
       }
@@ -316,10 +327,10 @@
     if (!evt.target.closest('.chip-pop-wrap')) closeAllPopovers();
   });
 
-  $('aplicar-meses').addEventListener('click', function (evt) {
+  $('aplicar-mes').addEventListener('click', function (evt) {
     evt.stopPropagation();
-    state.meses = Number($('input-meses').value) || 1;
-    selectPeriod('meses_retroativos');
+    state.mes = Number($('select-mes').value) || (new Date().getMonth() + 1);
+    selectPeriod('mes_especifico');
   });
 
   $('aplicar-custom').addEventListener('click', function (evt) {
@@ -332,9 +343,7 @@
     selectPeriod('personalizado');
   });
 
-  // -----------------------------------------------------------------------
   // Eventos — abas e paginação
-  // -----------------------------------------------------------------------
   $('tab-visao').addEventListener('click', function () { switchTab('visao'); });
   $('tab-auditoria').addEventListener('click', function () { switchTab('auditoria'); });
 
@@ -345,10 +354,56 @@
     state.page += 1; loadAuditoria();
   });
 
-  // -----------------------------------------------------------------------
+  // Atualização manual
+  $('btn-atualizar').addEventListener('click', function () {
+    var btn = $('btn-atualizar');
+    btn.classList.add('is-spinning');
+    Promise.resolve(loadActiveTab()).finally(function () {
+      setTimeout(function () { btn.classList.remove('is-spinning'); }, 400);
+    });
+  });
+
+  // Tema claro/escuro
+  var ICON_SUN = '<path d="M10 2.5v2M10 15.5v2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M2.5 10h2M15.5 10h2M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="10" r="3.6" stroke="currentColor" stroke-width="1.5"/>';
+  var ICON_MOON = '<path d="M15.5 11.8A6 6 0 0 1 8.2 4.5a6.3 6.3 0 1 0 7.3 7.3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>';
+
+  function applyTheme(theme) {
+    state.theme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    $('icone-tema').innerHTML = theme === 'dark' ? ICON_SUN : ICON_MOON;
+    try { localStorage.setItem('vigia-theme', theme); } catch (e) { /* localStorage indisponível — segue só na sessão atual */ }
+  }
+
+  $('btn-tema').addEventListener('click', function () {
+    applyTheme(state.theme === 'dark' ? 'light' : 'dark');
+  });
+
+  function loadInitialTheme() {
+    var saved = null;
+    try { saved = localStorage.getItem('vigia-theme'); } catch (e) { /* ignora */ }
+    if (saved === 'light' || saved === 'dark') return saved;
+    var prefereClaro = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    return prefereClaro ? 'light' : 'dark';
+  }
+
+  // Suporte
+  function setupSupportButton() {
+    var btn = $('btn-suporte');
+    if (!SUPPORT_CHAT_URL) {
+      btn.classList.add('is-disabled');
+      btn.removeAttribute('href');
+      btn.title = 'Link de suporte ainda não configurado';
+    } else {
+      btn.href = SUPPORT_CHAT_URL;
+      btn.title = 'Falar com o suporte';
+    }
+  }
+
   // Inicialização
-  // -----------------------------------------------------------------------
   function init() {
+    applyTheme(loadInitialTheme());
+    setupSupportButton();
+    populateMonthSelect();
     renderPeriodSelection();
     loadActiveTab();
     restartAutoRefresh();
