@@ -1,7 +1,9 @@
 (function () {
   'use strict';
 
+  // -----------------------------------------------------------------------
   // Configuração
+  // -----------------------------------------------------------------------
   var API_BASE = 'https://webhook.prod.advocaciaescalaveldev.shop/webhook';
   var METRICS_URL = API_BASE + '/painel-sucesso-cliente-metricas';
   var AUDITORIA_URL = API_BASE + '/painel-sucesso-cliente-auditoria';
@@ -9,8 +11,8 @@
   var STALE_AFTER_MS = 75 * 60 * 1000;
   var PAGE_SIZE = 20;
 
-  // Preencher quando o link do chat de suporte for definido. Enquanto vazio, o botão fica desabilitado.
-  var SUPPORT_CHAT_URL = '';
+  // Link do chat de suporte
+  var SUPPORT_CHAT_URL = 'https://www.bitrix24.net/oauth/select/?preset=im&IM_DIALOG=networkLines2c241bdd31ccc82c8bb67b64d6de9d1f';
 
   var MESES_NOMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
@@ -25,7 +27,9 @@
     personalizado: 'no período selecionado'
   };
 
+  // -----------------------------------------------------------------------
   // Estado
+  // -----------------------------------------------------------------------
   var state = {
     tab: 'visao',
     page: 1,
@@ -64,7 +68,9 @@
     });
   }
 
+  // -----------------------------------------------------------------------
   // Período selecionado
+  // -----------------------------------------------------------------------
   function currentPeriodParams() {
     var params = { tipo_periodo: state.periodo };
     if (state.periodo === 'personalizado') {
@@ -122,7 +128,9 @@
     }
   }
 
+  // -----------------------------------------------------------------------
   // Rede
+  // -----------------------------------------------------------------------
   function fetchJson(url) {
     return fetch(url, { headers: { Accept: 'application/json' } }).then(function (res) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -138,7 +146,9 @@
     label.textContent = ok ? 'Conectado' : 'Erro de conexão';
   }
 
+  // -----------------------------------------------------------------------
   // Frescor dos dados
+  // -----------------------------------------------------------------------
   function markFetched() {
     state.lastFetchAt = Date.now();
     renderFreshness();
@@ -158,7 +168,9 @@
 
   setInterval(renderFreshness, 5000);
 
+  // -----------------------------------------------------------------------
   // Visão geral
+  // -----------------------------------------------------------------------
   function renderBar(elId, value, max) {
     var el = $(elId);
     if (!max || max <= 0) { el.style.width = '0%'; return; }
@@ -176,13 +188,18 @@
       .then(function (data) {
         setConnection(true);
 
-        var efetividade = data.efetividade_sofia_pct;
-        $('m-efetividade').textContent = (efetividade === null || efetividade === undefined) ? '—' : efetividade + '%';
-        renderBar('bar-efetividade', efetividade || 0, 100);
+        var efIA = data.efetividade_ia_pct;
+        $('m-efetividade-ia').textContent = (efIA === null || efIA === undefined) ? '—' : efIA + '%';
+        renderBar('bar-efetividade-ia', efIA || 0, 100);
+
+        var efHumano = data.efetividade_com_transferencia_pct;
+        $('m-efetividade-humano').textContent = (efHumano === null || efHumano === undefined) ? '—' : efHumano + '%';
+        renderBar('bar-efetividade-humano', efHumano || 0, 100);
 
         $('m-em-aberto').textContent = fmtNumber(data.atendimentos_em_aberto);
         $('m-criados').textContent = fmtNumber(data.atendimentos_criados);
         $('m-concluidos').textContent = fmtNumber(data.atendimentos_concluidos);
+        $('m-sem-resposta').textContent = fmtNumber(data.sem_resposta_24h);
         $('m-transferido-sem-resposta').textContent = fmtNumber(data.transferidos_sem_resposta);
         $('m-sem-aceite').textContent = fmtNumber(data.colaborador_nao_aceitou);
 
@@ -202,7 +219,9 @@
       });
   }
 
+  // -----------------------------------------------------------------------
   // Auditoria
+  // -----------------------------------------------------------------------
   function renderAuditRow(a) {
     var justificativa = a.justificativa_avaliacao
       ? '<strong>' + escapeHtml(a.acao_recomendada || 'Sem ação recomendada') + '</strong>' + escapeHtml(a.justificativa_avaliacao)
@@ -230,6 +249,20 @@
       '</tr>';
   }
 
+  function classificationFilterParams() {
+    return {
+      filtro_canal: $('filtro-canal').value,
+      filtro_info_processual: $('filtro-info').value,
+      filtro_alucinacao: $('filtro-alucinacao').value,
+      filtro_insatisfacao: $('filtro-insatisfacao').value,
+      filtro_golpe: $('filtro-golpe').value,
+      filtro_transferencia: $('filtro-transferencia').value,
+      filtro_sem_resposta: $('filtro-sem-resposta').value,
+      filtro_transferido_sem_resposta: $('filtro-transferido-sem-resposta').value,
+      filtro_sem_aceite: $('filtro-sem-aceite').value
+    };
+  }
+
   function loadAuditoria() {
     $('auditoria-error').hidden = true;
     $('auditoria-empty').hidden = true;
@@ -238,6 +271,7 @@
     var params = currentPeriodParams();
     params.page = state.page;
     params.pageSize = PAGE_SIZE;
+    Object.assign(params, classificationFilterParams());
 
     var url = AUDITORIA_URL + '?' + toQueryString(params);
 
@@ -271,7 +305,9 @@
       });
   }
 
+  // -----------------------------------------------------------------------
   // Orquestração de abas
+  // -----------------------------------------------------------------------
   function loadActiveTab() {
     if (state.tab === 'visao') return loadMetrics();
     return loadAuditoria();
@@ -297,7 +333,9 @@
     state.refreshTimer = setInterval(loadActiveTab, AUTO_REFRESH_MS);
   }
 
+  // -----------------------------------------------------------------------
   // Eventos — período
+  // -----------------------------------------------------------------------
   document.querySelectorAll('.segmented__opt').forEach(function (el) {
     el.addEventListener('click', function () { selectPeriod(el.dataset.periodo); });
   });
@@ -343,7 +381,9 @@
     selectPeriod('personalizado');
   });
 
+  // -----------------------------------------------------------------------
   // Eventos — abas e paginação
+  // -----------------------------------------------------------------------
   $('tab-visao').addEventListener('click', function () { switchTab('visao'); });
   $('tab-auditoria').addEventListener('click', function () { switchTab('auditoria'); });
 
@@ -354,7 +394,24 @@
     state.page += 1; loadAuditoria();
   });
 
+  var FILTROS_AUDITORIA_IDS = ['filtro-canal', 'filtro-info', 'filtro-alucinacao', 'filtro-insatisfacao', 'filtro-golpe', 'filtro-transferencia', 'filtro-sem-resposta', 'filtro-transferido-sem-resposta', 'filtro-sem-aceite'];
+
+  FILTROS_AUDITORIA_IDS.forEach(function (id) {
+    $(id).addEventListener('change', function () {
+      state.page = 1;
+      loadAuditoria();
+    });
+  });
+
+  $('limpar-filtros-auditoria').addEventListener('click', function () {
+    FILTROS_AUDITORIA_IDS.forEach(function (id) { $(id).value = ''; });
+    state.page = 1;
+    loadAuditoria();
+  });
+
+  // -----------------------------------------------------------------------
   // Atualização manual
+  // -----------------------------------------------------------------------
   $('btn-atualizar').addEventListener('click', function () {
     var btn = $('btn-atualizar');
     btn.classList.add('is-spinning');
@@ -363,7 +420,9 @@
     });
   });
 
+  // -----------------------------------------------------------------------
   // Tema claro/escuro
+  // -----------------------------------------------------------------------
   var ICON_SUN = '<path d="M10 2.5v2M10 15.5v2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M2.5 10h2M15.5 10h2M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="10" r="3.6" stroke="currentColor" stroke-width="1.5"/>';
   var ICON_MOON = '<path d="M15.5 11.8A6 6 0 0 1 8.2 4.5a6.3 6.3 0 1 0 7.3 7.3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>';
 
@@ -386,7 +445,9 @@
     return prefereClaro ? 'light' : 'dark';
   }
 
+  // -----------------------------------------------------------------------
   // Suporte
+  // -----------------------------------------------------------------------
   function setupSupportButton() {
     var btn = $('btn-suporte');
     if (!SUPPORT_CHAT_URL) {
@@ -399,7 +460,9 @@
     }
   }
 
+  // -----------------------------------------------------------------------
   // Inicialização
+  // -----------------------------------------------------------------------
   function init() {
     applyTheme(loadInitialTheme());
     setupSupportButton();
