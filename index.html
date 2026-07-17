@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Atendimentos — Sucesso do Cliente</title>
+<title>Vigia — Sucesso do Cliente</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -15,7 +15,7 @@
 
   <header class="header">
     <div class="header__titles">
-      <h1 class="header__title">Atendimentos — Sucesso do Cliente</h1>
+      <h1 class="header__title">Vigia — Sucesso do Cliente</h1>
       <p class="header__subtitle">Engel Advogados</p>
       <p class="conn" id="conn-status"><span class="conn__dot" id="conn-dot"></span><span id="conn-label">Conectando…</span></p>
     </div>
@@ -115,10 +115,23 @@
           </article>
 
           <article class="metric-card">
-            <span class="metric-card__head"><i class="dot dot--success"></i>Efetividade da Sofia</span>
-            <span class="metric-card__value" id="m-efetividade">—</span>
-            <div class="progress"><div class="progress__fill progress__fill--success" id="bar-efetividade"></div></div>
-            <span class="metric-card__hint">média do score no período</span>
+            <span class="metric-card__head"><i class="dot dot--danger"></i>Sem resposta há 24h</span>
+            <span class="metric-card__value" id="m-sem-resposta">—</span>
+            <span class="metric-card__hint">agora, sem filtro de período — exclui encerramentos/agradecimentos</span>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-card__head"><i class="dot dot--success"></i>Efetividade — só IA</span>
+            <span class="metric-card__value" id="m-efetividade-ia">—</span>
+            <div class="progress"><div class="progress__fill progress__fill--success" id="bar-efetividade-ia"></div></div>
+            <span class="metric-card__hint">score médio · atendimentos sem participação humana</span>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-card__head"><i class="dot dot--purple"></i>Efetividade — com humano</span>
+            <span class="metric-card__value" id="m-efetividade-humano">—</span>
+            <div class="progress"><div class="progress__fill progress__fill--success" id="bar-efetividade-humano"></div></div>
+            <span class="metric-card__hint">score médio da Sofia · atendimentos que envolveram colaborador</span>
           </article>
 
           <article class="metric-card">
@@ -146,6 +159,50 @@
 
     <section id="painel-auditoria" class="panel" hidden role="tabpanel" aria-labelledby="tab-auditoria">
       <p class="section-label" id="periodo-label-auditoria">Dados do período</p>
+
+      <div class="audit-filters">
+        <div class="field">
+          <label for="filtro-canal">Canal</label>
+          <select id="filtro-canal">
+            <option value="">Todos</option>
+            <option value="ia">Só IA</option>
+            <option value="humano">Com humano</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="filtro-info">Info. processual</label>
+          <select id="filtro-info"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+        </div>
+        <div class="field">
+          <label for="filtro-alucinacao">Alucinação</label>
+          <select id="filtro-alucinacao"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+        </div>
+        <div class="field">
+          <label for="filtro-insatisfacao">Insatisfação</label>
+          <select id="filtro-insatisfacao"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+        </div>
+        <div class="field">
+          <label for="filtro-golpe">Golpe</label>
+          <select id="filtro-golpe"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+        </div>
+        <div class="field">
+          <label for="filtro-transferencia">Transferência</label>
+          <select id="filtro-transferencia"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+        </div>
+        <div class="field">
+          <label for="filtro-sem-resposta">Sem resposta 24h</label>
+          <select id="filtro-sem-resposta"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+        </div>
+        <div class="field">
+          <label for="filtro-transferido-sem-resposta">Transferido s/ resp.</label>
+          <select id="filtro-transferido-sem-resposta"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+        </div>
+        <div class="field">
+          <label for="filtro-sem-aceite">Sem aceite</label>
+          <select id="filtro-sem-aceite"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+        </div>
+        <button class="btn btn--ghost" id="limpar-filtros-auditoria">Limpar filtros</button>
+      </div>
 
       <div class="table-wrap">
         <table class="audit-table">
