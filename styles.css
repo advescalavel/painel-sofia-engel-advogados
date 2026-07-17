@@ -575,6 +575,13 @@ button, input, select { font-family: inherit; font-size: inherit; color: inherit
   color: var(--text-soft);
 }
 .justificativa strong { color: var(--text); display: block; margin-bottom: 2px; font-size: 12px; }
+.justificativa em { color: var(--text-faint); font-style: normal; font-weight: 600; }
+
+.sub-score {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
 
 .pagination {
   display: flex;
