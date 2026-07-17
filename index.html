@@ -121,17 +121,10 @@
           </article>
 
           <article class="metric-card">
-            <span class="metric-card__head"><i class="dot dot--success"></i>Efetividade — só IA</span>
-            <span class="metric-card__value" id="m-efetividade-ia">—</span>
-            <div class="progress"><div class="progress__fill progress__fill--success" id="bar-efetividade-ia"></div></div>
-            <span class="metric-card__hint">score médio · atendimentos sem participação humana</span>
-          </article>
-
-          <article class="metric-card">
-            <span class="metric-card__head"><i class="dot dot--purple"></i>Efetividade — com humano</span>
-            <span class="metric-card__value" id="m-efetividade-humano">—</span>
-            <div class="progress"><div class="progress__fill progress__fill--success" id="bar-efetividade-humano"></div></div>
-            <span class="metric-card__hint">score médio da Sofia · atendimentos que envolveram colaborador</span>
+            <span class="metric-card__head"><i class="dot dot--success"></i>Efetividade da Sofia</span>
+            <span class="metric-card__value" id="m-efetividade">—</span>
+            <div class="progress"><div class="progress__fill progress__fill--success" id="bar-efetividade"></div></div>
+            <span class="metric-card__hint">score médio no período</span>
           </article>
 
           <article class="metric-card">
@@ -144,6 +137,36 @@
             <span class="metric-card__head"><i class="dot dot--danger"></i>Colaborador não aceitou</span>
             <span class="metric-card__value" id="m-sem-aceite">—</span>
             <span class="metric-card__hint">agora, sem filtro de período</span>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-card__head"><i class="dot dot--danger"></i>Taxa de falhas críticas</span>
+            <span class="metric-card__value" id="m-taxa-falhas">—</span>
+            <span class="metric-card__hint">% de atendimentos com falha grave</span>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-card__head"><i class="dot dot--success"></i>Compreensão correta</span>
+            <span class="metric-card__value" id="m-taxa-compreensao">—</span>
+            <span class="metric-card__hint">% acertou a demanda de primeira</span>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-card__head"><i class="dot dot--warn"></i>Taxa de retrabalho</span>
+            <span class="metric-card__value" id="m-taxa-retrabalho">—</span>
+            <span class="metric-card__hint">% em que o cliente precisou repetir/corrigir</span>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-card__head"><i class="dot dot--success"></i>Resolução correta</span>
+            <span class="metric-card__value" id="m-taxa-resolucao">—</span>
+            <span class="metric-card__hint">% certo ao resolver sem transferir</span>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-card__head"><i class="dot dot--purple"></i>Encaminhamento correto</span>
+            <span class="metric-card__value" id="m-taxa-encaminhamento">—</span>
+            <span class="metric-card__hint">% certo ao transferir</span>
           </article>
         </div>
 
@@ -201,6 +224,20 @@
           <label for="filtro-sem-aceite">Sem aceite</label>
           <select id="filtro-sem-aceite"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
         </div>
+        <div class="field">
+          <label for="filtro-falha-critica">Falha crítica</label>
+          <select id="filtro-falha-critica">
+            <option value="">Todas</option>
+            <option value="nenhuma">Sem falha</option>
+            <option value="informacao_inventada">Informação inventada</option>
+            <option value="ignorou_pedido_humano">Ignorou pedido humano</option>
+            <option value="informacao_incorreta">Informação incorreta</option>
+            <option value="cliente_corrigiu_sofia">Cliente corrigiu a Sofia</option>
+            <option value="persistiu_apos_erro">Persistiu após erro</option>
+            <option value="expectativa_incorreta">Expectativa incorreta</option>
+            <option value="repeticao_sem_evolucao">Repetição sem evolução</option>
+          </select>
+        </div>
         <button class="btn btn--ghost" id="limpar-filtros-auditoria">Limpar filtros</button>
       </div>
 
@@ -211,6 +248,7 @@
               <th>Atendimento</th>
               <th>Avaliado em</th>
               <th>Score</th>
+              <th>Falha crítica</th>
               <th>Info. processual</th>
               <th>Alucinação</th>
               <th>Insatisfação</th>
