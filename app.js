@@ -188,13 +188,9 @@
       .then(function (data) {
         setConnection(true);
 
-        var efIA = data.efetividade_ia_pct;
-        $('m-efetividade-ia').textContent = (efIA === null || efIA === undefined) ? '—' : efIA + '%';
-        renderBar('bar-efetividade-ia', efIA || 0, 100);
-
-        var efHumano = data.efetividade_com_transferencia_pct;
-        $('m-efetividade-humano').textContent = (efHumano === null || efHumano === undefined) ? '—' : efHumano + '%';
-        renderBar('bar-efetividade-humano', efHumano || 0, 100);
+        var efetividade = data.efetividade_sofia_pct;
+        $('m-efetividade').textContent = (efetividade === null || efetividade === undefined) ? '—' : efetividade + '%';
+        renderBar('bar-efetividade', efetividade || 0, 100);
 
         $('m-em-aberto').textContent = fmtNumber(data.atendimentos_em_aberto);
         $('m-criados').textContent = fmtNumber(data.atendimentos_criados);
@@ -209,6 +205,14 @@
 
         var semDados = !data.atendimentos_em_aberto && !data.atendimentos_concluidos && !data.atendimentos_criados;
         $('visao-empty').hidden = !semDados;
+
+        var fmtPct = function (v) { return (v === null || v === undefined) ? '—' : v + '%'; };
+        $('m-taxa-falhas').textContent = fmtPct(data.taxa_falhas_criticas_pct);
+        $('m-taxa-compreensao').textContent = fmtPct(data.taxa_compreensao_correta_pct);
+        $('m-taxa-retrabalho').textContent = fmtPct(data.taxa_retrabalho_pct);
+        $('m-taxa-resolucao').textContent = fmtPct(data.taxa_resolucao_correta_pct);
+        $('m-taxa-encaminhamento').textContent = fmtPct(data.taxa_encaminhamento_correto_pct);
+
         markFetched();
       })
       .catch(function (err) {
@@ -222,15 +226,42 @@
   // -----------------------------------------------------------------------
   // Auditoria
   // -----------------------------------------------------------------------
+  var FALHA_LABELS = {
+    nenhuma: 'Sem falha',
+    informacao_inventada: 'Informação inventada',
+    ignorou_pedido_humano: 'Ignorou pedido humano',
+    informacao_incorreta: 'Informação incorreta',
+    cliente_corrigiu_sofia: 'Cliente corrigiu a Sofia',
+    persistiu_apos_erro: 'Persistiu após erro',
+    expectativa_incorreta: 'Expectativa incorreta',
+    repeticao_sem_evolucao: 'Repetição sem evolução'
+  };
+
+  function falhaBadge(falha) {
+    if (!falha) return '<span class="badge badge--null">N/A</span>';
+    if (falha === 'nenhuma') return '<span class="badge badge--true">Sem falha</span>';
+    return '<span class="badge badge--false">' + escapeHtml(FALHA_LABELS[falha] || falha) + '</span>';
+  }
+
   function renderAuditRow(a) {
-    var justificativa = a.justificativa_avaliacao
-      ? '<strong>' + escapeHtml(a.acao_recomendada || 'Sem ação recomendada') + '</strong>' + escapeHtml(a.justificativa_avaliacao)
-      : '<span>Ainda não avaliado.</span>';
+    var detalheErro = a.categoria_erro
+      ? '<strong>' + escapeHtml(a.categoria_erro) + '</strong>' +
+        (a.evidencia_erro ? '<em>Evidência:</em> ' + escapeHtml(a.evidencia_erro) + ' ' : '') +
+        (a.impacto_erro ? '<em>Impacto:</em> ' + escapeHtml(a.impacto_erro) + ' ' : '') +
+        (a.sugestao_melhoria ? '<em>Sugestão:</em> ' + escapeHtml(a.sugestao_melhoria) : '')
+      : (a.justificativa_avaliacao
+          ? '<strong>' + escapeHtml(a.acao_recomendada || 'Sem ação recomendada') + '</strong>' + escapeHtml(a.justificativa_avaliacao)
+          : '<span>Ainda não avaliado.</span>');
 
     var nomeCliente = escapeHtml(a.cliente || 'Não informado');
     var clienteHtml = a.chat_id
       ? '<a class="cell-session__name cell-session__link" href="https://engeladvogados.bitrix24.com.br/online/?IM_DIALOG=chat' + encodeURIComponent(a.chat_id) + '" target="_blank" rel="noopener">' + nomeCliente + '</a>'
       : '<span class="cell-session__name cell-session__name--plain">' + nomeCliente + '</span>';
+
+    var scoreHtml = (a.score_efetividade === null || a.score_efetividade === undefined) ? '—' : a.score_efetividade;
+    var subScores = (a.compreensao_demanda_score !== null && a.compreensao_demanda_score !== undefined)
+      ? '<br><span class="sub-score">C ' + a.compreensao_demanda_score + ' · P ' + a.precisao_resposta_score + ' · E ' + a.esforco_cliente_score + ' · Enc ' + a.encaminhamento_score + '</span>'
+      : '';
 
     return '' +
       '<tr>' +
@@ -239,13 +270,14 @@
           escapeHtml(a.session_id || '') +
         '</td>' +
         '<td>' + fmtDateTime(a.avaliado_em) + '</td>' +
-        '<td class="score-cell">' + (a.score_efetividade === null || a.score_efetividade === undefined ? '—' : a.score_efetividade) + '</td>' +
+        '<td class="score-cell">' + scoreHtml + subScores + '</td>' +
+        '<td>' + falhaBadge(a.falha_critica) + '</td>' +
         '<td>' + badge(a.informacao_processual_correta) + '</td>' +
         '<td>' + badge(a.alucinacao_detectada) + '</td>' +
         '<td>' + badge(a.insatisfacao_com_escritorio) + '</td>' +
         '<td>' + badge(a.alerta_golpe_repassado) + '</td>' +
         '<td>' + badge(a.transferencia_confirmada) + '</td>' +
-        '<td class="justificativa">' + justificativa + '</td>' +
+        '<td class="justificativa">' + detalheErro + '</td>' +
       '</tr>';
   }
 
@@ -259,7 +291,8 @@
       filtro_transferencia: $('filtro-transferencia').value,
       filtro_sem_resposta: $('filtro-sem-resposta').value,
       filtro_transferido_sem_resposta: $('filtro-transferido-sem-resposta').value,
-      filtro_sem_aceite: $('filtro-sem-aceite').value
+      filtro_sem_aceite: $('filtro-sem-aceite').value,
+      filtro_falha_critica: $('filtro-falha-critica').value
     };
   }
 
@@ -394,7 +427,7 @@
     state.page += 1; loadAuditoria();
   });
 
-  var FILTROS_AUDITORIA_IDS = ['filtro-canal', 'filtro-info', 'filtro-alucinacao', 'filtro-insatisfacao', 'filtro-golpe', 'filtro-transferencia', 'filtro-sem-resposta', 'filtro-transferido-sem-resposta', 'filtro-sem-aceite'];
+  var FILTROS_AUDITORIA_IDS = ['filtro-canal', 'filtro-info', 'filtro-alucinacao', 'filtro-insatisfacao', 'filtro-golpe', 'filtro-transferencia', 'filtro-sem-resposta', 'filtro-transferido-sem-resposta', 'filtro-sem-aceite', 'filtro-falha-critica'];
 
   FILTROS_AUDITORIA_IDS.forEach(function (id) {
     $(id).addEventListener('change', function () {
