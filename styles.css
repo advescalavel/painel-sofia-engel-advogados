@@ -473,6 +473,37 @@ button, input, select { font-family: inherit; font-size: inherit; color: inherit
   color: var(--text-faint);
 }
 
+.audit-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.audit-filters .field label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+  display: block;
+}
+.audit-filters .field select {
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  min-height: 32px;
+  min-width: 120px;
+}
+.audit-filters .btn { margin-left: auto; }
+
 /* Tabela de auditoria */
 
 .table-wrap {
