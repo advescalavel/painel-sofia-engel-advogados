@@ -19,9 +19,9 @@
   var PERIODO_LABELS = {
     hoje: 'hoje',
     semana_atual: 'nesta semana',
-    semana_anterior: 'na semana anterior',
+    semanas_especificas: 'nas semanas selecionadas',
     mes_atual: 'neste mês',
-    mes_especifico: 'no mês selecionado',
+    meses_especificos: 'nos meses selecionados',
     trimestre: 'no trimestre atual',
     semestre: 'no semestre atual',
     personalizado: 'no período selecionado'
@@ -34,7 +34,8 @@
     tab: 'visao',
     page: 1,
     periodo: 'hoje',
-    mes: null,
+    semanasSelecionadas: [],
+    mesesSelecionados: [],
     dataInicio: null,
     dataFim: null,
     lastFetchAt: null,
@@ -76,8 +77,10 @@
     if (state.periodo === 'personalizado') {
       params.data_inicio = state.dataInicio;
       params.data_fim = state.dataFim;
-    } else if (state.periodo === 'mes_especifico') {
-      params.mes = state.mes;
+    } else if (state.periodo === 'meses_especificos') {
+      params.meses = state.mesesSelecionados.join(',');
+    } else if (state.periodo === 'semanas_especificas') {
+      params.semanas = state.semanasSelecionadas.join(',');
     }
     return params;
   }
@@ -112,19 +115,54 @@
   function closeAllPopovers() {
     $('pop-mes').hidden = true;
     $('pop-custom').hidden = true;
+    $('pop-semanas').hidden = true;
   }
 
-  function populateMonthSelect() {
+  function popularListaMeses() {
     var now = new Date();
-    var mesAtual = now.getMonth() + 1; // 1-indexed
-    var select = $('select-mes');
-    select.innerHTML = '';
-    for (var m = 1; m <= mesAtual; m++) {
-      var opt = document.createElement('option');
-      opt.value = String(m);
-      opt.textContent = MESES_NOMES[m - 1];
-      if (m === mesAtual) opt.selected = true;
-      select.appendChild(opt);
+    var ano = now.getFullYear();
+    var mesAtual = now.getMonth() + 1;
+    var container = $('lista-meses');
+    container.innerHTML = '';
+    for (var m = mesAtual; m >= 1; m--) {
+      var chave = ano + '-' + String(m).padStart(2, '0');
+      var checked = state.mesesSelecionados.indexOf(chave) !== -1;
+      var label = document.createElement('label');
+      label.className = 'lista-checkbox__item';
+      label.innerHTML = '<input type="checkbox" value="' + chave + '"' + (checked ? ' checked' : '') + '> ' + MESES_NOMES[m - 1] + ' / ' + ano;
+      container.appendChild(label);
+    }
+  }
+
+  function segundaFeiraDe(data) {
+    var d = new Date(data);
+    var diaSemana = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - diaSemana);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function fmtDataCurta(d) {
+    return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+
+  function popularListaSemanas() {
+    var container = $('lista-semanas');
+    container.innerHTML = '';
+    var hoje = new Date();
+    var segundaAtual = segundaFeiraDe(hoje);
+    for (var i = 0; i < 12; i++) {
+      var segunda = new Date(segundaAtual);
+      segunda.setDate(segunda.getDate() - i * 7);
+      var domingo = new Date(segunda);
+      domingo.setDate(domingo.getDate() + 6);
+      var chave = segunda.getFullYear() + '-' + String(segunda.getMonth() + 1).padStart(2, '0') + '-' + String(segunda.getDate()).padStart(2, '0');
+      var texto = (i === 0 ? 'Esta semana · ' : i === 1 ? 'Semana passada · ' : '') + fmtDataCurta(segunda) + ' a ' + fmtDataCurta(domingo) + ' / ' + domingo.getFullYear();
+      var checked = state.semanasSelecionadas.indexOf(chave) !== -1;
+      var label = document.createElement('label');
+      label.className = 'lista-checkbox__item';
+      label.innerHTML = '<input type="checkbox" value="' + chave + '"' + (checked ? ' checked' : '') + '> ' + texto;
+      container.appendChild(label);
     }
   }
 
@@ -362,24 +400,38 @@
   // Eventos — período
   // -----------------------------------------------------------------------
   document.querySelectorAll('.segmented__opt').forEach(function (el) {
-    el.addEventListener('click', function () { selectPeriod(el.dataset.periodo); });
+    el.addEventListener('click', function (evt) {
+      var tipo = el.dataset.periodo;
+      if (tipo === 'personalizado') {
+        evt.stopPropagation();
+        $('pop-mes').hidden = true;
+        $('pop-semanas').hidden = true;
+        $('pop-custom').hidden = !$('pop-custom').hidden;
+        return;
+      }
+      selectPeriod(tipo);
+    });
   });
 
   document.querySelectorAll('.chip').forEach(function (el) {
     el.addEventListener('click', function (evt) {
       var tipo = el.dataset.periodo;
-      if (tipo === 'mes_especifico') {
+      if (tipo === 'meses_especificos') {
         evt.stopPropagation();
         $('pop-custom').hidden = true;
-        var abrir = $('pop-mes').hidden;
-        if (abrir) populateMonthSelect();
-        $('pop-mes').hidden = !abrir;
+        $('pop-semanas').hidden = true;
+        var abrirMes = $('pop-mes').hidden;
+        if (abrirMes) popularListaMeses();
+        $('pop-mes').hidden = !abrirMes;
         return;
       }
-      if (tipo === 'personalizado') {
+      if (tipo === 'semanas_especificas') {
         evt.stopPropagation();
+        $('pop-custom').hidden = true;
         $('pop-mes').hidden = true;
-        $('pop-custom').hidden = !$('pop-custom').hidden;
+        var abrirSemana = $('pop-semanas').hidden;
+        if (abrirSemana) popularListaSemanas();
+        $('pop-semanas').hidden = !abrirSemana;
         return;
       }
       selectPeriod(tipo);
@@ -392,8 +444,18 @@
 
   $('aplicar-mes').addEventListener('click', function (evt) {
     evt.stopPropagation();
-    state.mes = Number($('select-mes').value) || (new Date().getMonth() + 1);
-    selectPeriod('mes_especifico');
+    var marcados = Array.prototype.slice.call($('lista-meses').querySelectorAll('input:checked')).map(function (i) { return i.value; });
+    if (!marcados.length) return;
+    state.mesesSelecionados = marcados;
+    selectPeriod('meses_especificos');
+  });
+
+  $('aplicar-semanas').addEventListener('click', function (evt) {
+    evt.stopPropagation();
+    var marcados = Array.prototype.slice.call($('lista-semanas').querySelectorAll('input:checked')).map(function (i) { return i.value; });
+    if (!marcados.length) return;
+    state.semanasSelecionadas = marcados;
+    selectPeriod('semanas_especificas');
   });
 
   $('aplicar-custom').addEventListener('click', function (evt) {
@@ -491,7 +553,6 @@
   function init() {
     applyTheme(loadInitialTheme());
     setupSupportButton();
-    populateMonthSelect();
     renderPeriodSelection();
     loadActiveTab();
     restartAutoRefresh();
