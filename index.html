@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Atendimentos — Sucesso do Cliente</title>
+<title>Vigia — Sucesso do Cliente</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -15,38 +15,18 @@
 
   <header class="header">
     <div class="header__titles">
-      <h1 class="header__title">Atendimentos — Sucesso do Cliente</h1>
-      <p class="header__subtitle">Engel Advogados — Análise e Métricas de Atendimentos Realizados Pela Sofia</p>
+      <h1 class="header__title">Vigia — Sucesso do Cliente</h1>
+      <p class="header__subtitle">Engel Advogados</p>
       <p class="conn" id="conn-status"><span class="conn__dot" id="conn-dot"></span><span id="conn-label">Conectando…</span></p>
     </div>
 
     <div class="header__filters">
-      <div class="segmented" id="segmented-principal" role="tablist" aria-label="Período rápido">
+      <div class="segmented" id="segmented-principal" role="tablist" aria-label="Período principal">
         <button class="segmented__opt" data-periodo="hoje">Hoje</button>
         <button class="segmented__opt" data-periodo="semana_atual">Esta semana</button>
         <button class="segmented__opt" data-periodo="mes_atual">Este mês</button>
-      </div>
-
-      <span class="divider" aria-hidden="true"></span>
-
-      <div class="chips" id="chips-secundarios">
-        <button class="chip" data-periodo="semana_anterior">Semana anterior</button>
-        <button class="chip" data-periodo="trimestre">Trimestre atual</button>
-        <button class="chip" data-periodo="semestre">Semestre atual</button>
-
         <div class="chip-pop-wrap">
-          <button class="chip" id="chip-mes" data-periodo="mes_especifico">Selecionar mês…</button>
-          <div class="popover" id="pop-mes" hidden>
-            <label for="select-mes">Mês (ano atual)</label>
-            <div class="popover__row">
-              <select id="select-mes"></select>
-              <button class="btn btn--accent" id="aplicar-mes">Aplicar</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="chip-pop-wrap">
-          <button class="chip" id="chip-custom" data-periodo="personalizado">Data personalizada…</button>
+          <button class="segmented__opt" id="chip-custom" data-periodo="personalizado">Data personalizada</button>
           <div class="popover" id="pop-custom" hidden>
             <label for="input-inicio">Intervalo</label>
             <div class="popover__row">
@@ -56,6 +36,36 @@
               <button class="btn btn--accent" id="aplicar-custom">Aplicar</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="chips-secundarios-wrap">
+        <span class="chips-secundarios-label">outros períodos</span>
+        <div class="chips" id="chips-secundarios">
+          <div class="chip-pop-wrap">
+            <button class="chip" id="chip-semanas" data-periodo="semanas_especificas">Selecionar semanas…</button>
+            <div class="popover popover--lista" id="pop-semanas" hidden>
+              <label>Semanas</label>
+              <div class="lista-checkbox" id="lista-semanas"></div>
+              <div class="popover__row popover__row--footer">
+                <button class="btn btn--accent" id="aplicar-semanas">Aplicar</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="chip-pop-wrap">
+            <button class="chip" id="chip-mes" data-periodo="meses_especificos">Selecionar meses…</button>
+            <div class="popover popover--lista" id="pop-mes" hidden>
+              <label>Meses</label>
+              <div class="lista-checkbox" id="lista-meses"></div>
+              <div class="popover__row popover__row--footer">
+                <button class="btn btn--accent" id="aplicar-mes">Aplicar</button>
+              </div>
+            </div>
+          </div>
+
+          <button class="chip" data-periodo="trimestre">Trimestre atual</button>
+          <button class="chip" data-periodo="semestre">Semestre atual</button>
         </div>
       </div>
 
@@ -164,35 +174,35 @@
         </div>
         <div class="field">
           <label for="filtro-info">Info. processual</label>
-          <select id="filtro-info"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+          <select id="filtro-info"><option value="">Todos</option><option value="true">Correta</option><option value="false">Incorreta</option></select>
         </div>
         <div class="field">
           <label for="filtro-alucinacao">Alucinação</label>
-          <select id="filtro-alucinacao"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+          <select id="filtro-alucinacao"><option value="">Todos</option><option value="true">Detectada</option><option value="false">Não detectada</option></select>
         </div>
         <div class="field">
           <label for="filtro-insatisfacao">Insatisfação</label>
-          <select id="filtro-insatisfacao"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+          <select id="filtro-insatisfacao"><option value="">Todos</option><option value="true">Insatisfeito</option><option value="false">Satisfeito</option></select>
         </div>
         <div class="field">
           <label for="filtro-golpe">Golpe</label>
-          <select id="filtro-golpe"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+          <select id="filtro-golpe"><option value="">Todos</option><option value="true">Alertado</option><option value="false">Não alertado</option></select>
         </div>
         <div class="field">
           <label for="filtro-transferencia">Transferência</label>
-          <select id="filtro-transferencia"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+          <select id="filtro-transferencia"><option value="">Todos</option><option value="true">Transferido</option><option value="false">Não transferido</option></select>
         </div>
         <div class="field">
           <label for="filtro-sem-resposta">Sem resposta 24h</label>
-          <select id="filtro-sem-resposta"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+          <select id="filtro-sem-resposta"><option value="">Todos</option><option value="true">Pendente</option><option value="false">Resolvido</option></select>
         </div>
         <div class="field">
           <label for="filtro-transferido-sem-resposta">Transferido s/ resp.</label>
-          <select id="filtro-transferido-sem-resposta"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+          <select id="filtro-transferido-sem-resposta"><option value="">Todos</option><option value="true">Pendente</option><option value="false">Resolvido</option></select>
         </div>
         <div class="field">
           <label for="filtro-sem-aceite">Sem aceite</label>
-          <select id="filtro-sem-aceite"><option value="">Todos</option><option value="true">Sim</option><option value="false">Não</option></select>
+          <select id="filtro-sem-aceite"><option value="">Todos</option><option value="true">Não aceito</option><option value="false">Aceito</option></select>
         </div>
         <div class="field">
           <label for="filtro-falha-critica">Falha crítica</label>
