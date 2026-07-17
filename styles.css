@@ -152,7 +152,7 @@ button, input, select { font-family: inherit; font-size: inherit; color: inherit
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
-  padding: 3px;
+  padding: 4px;
   gap: 2px;
 }
 
@@ -160,9 +160,9 @@ button, input, select { font-family: inherit; font-size: inherit; color: inherit
   border: none;
   background: transparent;
   color: var(--text-soft);
-  font-weight: 600;
-  font-size: 13px;
-  padding: 7px 16px;
+  font-weight: 700;
+  font-size: 13.5px;
+  padding: 9px 18px;
   border-radius: var(--radius-full);
   cursor: pointer;
   white-space: nowrap;
@@ -172,6 +172,21 @@ button, input, select { font-family: inherit; font-size: inherit; color: inherit
   color: var(--pill-active-text);
 }
 .segmented__opt:hover:not(.is-active) { color: var(--text); }
+
+.chips-secundarios-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chips-secundarios-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
 
 .divider {
   width: 1px;
@@ -190,21 +205,22 @@ button, input, select { font-family: inherit; font-size: inherit; color: inherit
 }
 
 .chip {
-  border: 1px solid var(--border);
-  background: var(--surface-raised);
-  color: var(--text-soft);
-  font-weight: 600;
-  font-size: 13px;
-  padding: 7px 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-faint);
+  font-weight: 500;
+  font-size: 12px;
+  padding: 6px 12px;
   border-radius: var(--radius-full);
   cursor: pointer;
   white-space: nowrap;
 }
-.chip:hover { border-color: var(--accent-dim); color: var(--text); }
+.chip:hover { border-color: var(--border); color: var(--text-soft); background: var(--surface-raised); }
 .chip.is-active {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent);
+  font-weight: 600;
 }
 
 .chip-pop-wrap { position: relative; }
@@ -240,6 +256,51 @@ button, input, select { font-family: inherit; font-size: inherit; color: inherit
   padding: 7px 10px;
   min-width: 0;
   flex: 1;
+}
+
+.popover--lista { min-width: 220px; }
+
+.lista-checkbox {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  padding: 4px;
+}
+
+.lista-checkbox__item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  user-select: none;
+}
+.lista-checkbox__item:hover { background: var(--surface-raised); }
+
+.lista-checkbox__item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.popover__row--footer { justify-content: flex-end; }
+
+.btn--accent:disabled {
+  background: var(--border);
+  border-color: var(--border);
+  color: var(--text-faint);
+  cursor: not-allowed;
 }
 
 .btn {
