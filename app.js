@@ -205,14 +205,6 @@
 
         var semDados = !data.atendimentos_em_aberto && !data.atendimentos_concluidos && !data.atendimentos_criados;
         $('visao-empty').hidden = !semDados;
-
-        var fmtPct = function (v) { return (v === null || v === undefined) ? '—' : v + '%'; };
-        $('m-taxa-falhas').textContent = fmtPct(data.taxa_falhas_criticas_pct);
-        $('m-taxa-compreensao').textContent = fmtPct(data.taxa_compreensao_correta_pct);
-        $('m-taxa-retrabalho').textContent = fmtPct(data.taxa_retrabalho_pct);
-        $('m-taxa-resolucao').textContent = fmtPct(data.taxa_resolucao_correta_pct);
-        $('m-taxa-encaminhamento').textContent = fmtPct(data.taxa_encaminhamento_correto_pct);
-
         markFetched();
       })
       .catch(function (err) {
