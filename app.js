@@ -331,6 +331,7 @@
           clienteHtml + scoreInlineHtml + '<br>' +
           escapeHtml(a.session_id || '') +
         '</td>' +
+        '<td class="justificativa">' + detalheErro + '</td>' +
         '<td>' + fmtDateTime(a.avaliado_em) + '</td>' +
         '<td class="score-cell">' + scoreHtml + subScores + '</td>' +
         '<td>' + falhaBadge(a.falha_critica) + '</td>' +
@@ -339,7 +340,6 @@
         '<td>' + badge(a.insatisfacao_com_escritorio) + '</td>' +
         '<td>' + badge(a.alerta_golpe_repassado) + '</td>' +
         '<td>' + badge(a.transferencia_confirmada) + '</td>' +
-        '<td class="justificativa">' + detalheErro + '</td>' +
       '</tr>';
   }
 
