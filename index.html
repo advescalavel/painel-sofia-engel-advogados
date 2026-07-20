@@ -78,8 +78,9 @@
         <button class="btn btn--icon" id="btn-tema" title="Alternar tema claro/escuro" aria-label="Alternar tema">
           <svg id="icone-tema" viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true"><path d="M10 2.5v2M10 15.5v2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M2.5 10h2M15.5 10h2M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="10" r="3.6" stroke="currentColor" stroke-width="1.5"/></svg>
         </button>
-        <a class="btn btn--icon" id="btn-suporte" href="#" target="_blank" rel="noopener" title="Falar com o suporte" aria-label="Falar com o suporte">
+        <a class="btn btn--icon-text" id="btn-suporte" href="#" target="_blank" rel="noopener" title="Contatar o suporte" aria-label="Contatar o suporte">
           <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true"><path d="M3 9.5c0-3.6 3.1-6.5 7-6.5s7 2.9 7 6.5-3.1 6.5-7 6.5c-.8 0-1.6-.1-2.3-.4L4 17l1.1-3.3C3.8 12.5 3 11.1 3 9.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          <span>Contatar o suporte</span>
         </a>
       </div>
     </div>
@@ -150,6 +151,20 @@
           </article>
         </div>
 
+        <div class="charts-grid">
+          <article class="chart-card">
+            <span class="chart-card__title">Atendimentos por dia da semana</span>
+            <div class="bar-chart" id="chart-dia-semana"></div>
+            <span class="chart-card__hint" id="chart-dia-semana-hint">no período</span>
+          </article>
+
+          <article class="chart-card">
+            <span class="chart-card__title">Tempo médio de resposta</span>
+            <div class="chart-card__big-number" id="m-tempo-resposta">—</div>
+            <span class="chart-card__hint">tempo até a primeira resposta (dados do Vigia, a partir de 16/07/2026)</span>
+          </article>
+        </div>
+
         <p class="empty-state" id="visao-empty" hidden>Não há atendimentos de Sucesso do Cliente no período selecionado.</p>
         <p class="error-state" id="visao-error" hidden></p>
 
@@ -164,59 +179,60 @@
       <p class="section-label" id="periodo-label-auditoria">Dados do período</p>
 
       <div class="audit-filters">
-        <div class="field">
-          <label for="filtro-canal">Canal</label>
-          <select id="filtro-canal">
-            <option value="">Todos</option>
-            <option value="ia">Só IA</option>
-            <option value="humano">Com humano</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="filtro-info">Info. processual</label>
-          <select id="filtro-info"><option value="">Todos</option><option value="true">Correta</option><option value="false">Incorreta</option></select>
-        </div>
-        <div class="field">
-          <label for="filtro-alucinacao">Alucinação</label>
-          <select id="filtro-alucinacao"><option value="">Todos</option><option value="true">Detectada</option><option value="false">Não detectada</option></select>
-        </div>
-        <div class="field">
-          <label for="filtro-insatisfacao">Insatisfação</label>
-          <select id="filtro-insatisfacao"><option value="">Todos</option><option value="true">Insatisfeito</option><option value="false">Satisfeito</option></select>
-        </div>
-        <div class="field">
-          <label for="filtro-golpe">Golpe</label>
-          <select id="filtro-golpe"><option value="">Todos</option><option value="true">Alertado</option><option value="false">Não alertado</option></select>
-        </div>
-        <div class="field">
-          <label for="filtro-transferencia">Transferência</label>
-          <select id="filtro-transferencia"><option value="">Todos</option><option value="true">Transferido</option><option value="false">Não transferido</option></select>
-        </div>
-        <div class="field">
-          <label for="filtro-sem-resposta">Sem resposta 24h</label>
-          <select id="filtro-sem-resposta"><option value="">Todos</option><option value="true">Pendente</option><option value="false">Resolvido</option></select>
-        </div>
-        <div class="field">
-          <label for="filtro-transferido-sem-resposta">Transferido s/ resp.</label>
-          <select id="filtro-transferido-sem-resposta"><option value="">Todos</option><option value="true">Pendente</option><option value="false">Resolvido</option></select>
-        </div>
-        <div class="field">
-          <label for="filtro-sem-aceite">Sem aceite</label>
-          <select id="filtro-sem-aceite"><option value="">Todos</option><option value="true">Não aceito</option><option value="false">Aceito</option></select>
-        </div>
-        <div class="field">
-          <label for="filtro-falha-critica">Falha crítica</label>
-          <select id="filtro-falha-critica">
-            <option value="">Todas</option>
-            <option value="nenhuma">Sem falha</option>
-            <option value="informacao_inventada">Informação inventada</option>
-            <option value="ignorou_pedido_humano">Ignorou pedido humano</option>
-            <option value="informacao_incorreta">Informação incorreta</option>
-            <option value="cliente_corrigiu_sofia">Cliente corrigiu a Sofia</option>
-            <option value="persistiu_apos_erro">Persistiu após erro</option>
-            <option value="expectativa_incorreta">Expectativa incorreta</option>
-            <option value="repeticao_sem_evolucao">Repetição sem evolução</option>
-          </select>
+        <p class="audit-filters__hint">Nenhuma opção marcada = todos. Use Ctrl (ou Cmd) + clique para marcar mais de uma opção no mesmo filtro.</p>
+        <div class="audit-filters__grid">
+          <div class="field">
+            <label for="filtro-canal">Canal</label>
+            <select id="filtro-canal" multiple size="2">
+              <option value="ia">Só IA</option>
+              <option value="humano">Com humano</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filtro-info">Info. processual</label>
+            <select id="filtro-info" multiple size="2"><option value="true">Correta</option><option value="false">Incorreta</option></select>
+          </div>
+          <div class="field">
+            <label for="filtro-alucinacao">Alucinação</label>
+            <select id="filtro-alucinacao" multiple size="2"><option value="true">Detectada</option><option value="false">Não detectada</option></select>
+          </div>
+          <div class="field">
+            <label for="filtro-insatisfacao">Insatisfação</label>
+            <select id="filtro-insatisfacao" multiple size="2"><option value="true">Insatisfeito</option><option value="false">Satisfeito</option></select>
+          </div>
+          <div class="field">
+            <label for="filtro-golpe">Golpe</label>
+            <select id="filtro-golpe" multiple size="2"><option value="true">Alertado</option><option value="false">Não alertado</option></select>
+          </div>
+          <div class="field">
+            <label for="filtro-transferencia">Transferência</label>
+            <select id="filtro-transferencia" multiple size="2"><option value="true">Transferido</option><option value="false">Não transferido</option></select>
+          </div>
+          <div class="field">
+            <label for="filtro-sem-resposta">Sem resposta 24h</label>
+            <select id="filtro-sem-resposta" multiple size="2"><option value="true">Pendente</option><option value="false">Resolvido</option></select>
+          </div>
+          <div class="field">
+            <label for="filtro-transferido-sem-resposta">Transferido s/ resp.</label>
+            <select id="filtro-transferido-sem-resposta" multiple size="2"><option value="true">Pendente</option><option value="false">Resolvido</option></select>
+          </div>
+          <div class="field">
+            <label for="filtro-sem-aceite">Sem aceite</label>
+            <select id="filtro-sem-aceite" multiple size="2"><option value="true">Não aceito</option><option value="false">Aceito</option></select>
+          </div>
+          <div class="field">
+            <label for="filtro-falha-critica">Falha crítica</label>
+            <select id="filtro-falha-critica" multiple size="4">
+              <option value="nenhuma">Sem falha</option>
+              <option value="informacao_inventada">Informação inventada</option>
+              <option value="ignorou_pedido_humano">Ignorou pedido humano</option>
+              <option value="informacao_incorreta">Informação incorreta</option>
+              <option value="cliente_corrigiu_sofia">Cliente corrigiu a Sofia</option>
+              <option value="persistiu_apos_erro">Persistiu após erro</option>
+              <option value="expectativa_incorreta">Expectativa incorreta</option>
+              <option value="repeticao_sem_evolucao">Repetição sem evolução</option>
+            </select>
+          </div>
         </div>
         <button class="btn btn--ghost" id="limpar-filtros-auditoria">Limpar filtros</button>
       </div>
