@@ -340,6 +340,29 @@ button, input, select { font-family: inherit; font-size: inherit; color: inherit
 .btn--icon:hover { color: var(--accent); border-color: var(--accent); }
 .btn--icon.is-spinning svg { animation: spin 0.8s linear infinite; }
 .btn--icon.is-disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+.btn--icon-text {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  color: var(--text-soft);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn--icon-text:hover { color: var(--accent); border-color: var(--accent); }
+.btn--icon-text.is-disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+/* Ícone do seletor de data — invisível no tema escuro sem esse ajuste */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Tabs */
@@ -534,16 +557,103 @@ button, input, select { font-family: inherit; font-size: inherit; color: inherit
   color: var(--text-faint);
 }
 
-.audit-filters {
+/* Gráficos (dia da semana / tempo médio de resposta) */
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+@media (max-width: 720px) {
+  .charts-grid { grid-template-columns: 1fr; }
+}
+
+.chart-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chart-card__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+.chart-card__hint {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.chart-card__big-number {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1;
+}
+
+.bar-chart {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 8px;
+  height: 110px;
+  padding-top: 6px;
+}
+
+.bar-chart__col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 6px;
+}
+
+.bar-chart__value {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.bar-chart__bar {
+  width: 100%;
+  max-width: 34px;
+  border-radius: 4px 4px 0 0;
+  background: var(--accent);
+  min-height: 2px;
+  transition: height 0.4s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.bar-chart__label {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.audit-filters {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 14px 16px;
   margin-bottom: 16px;
+}
+.audit-filters__hint {
+  margin: 0 0 12px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.audit-filters__grid {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .audit-filters .field label {
   font-size: 10.5px;
@@ -559,11 +669,34 @@ button, input, select { font-family: inherit; font-size: inherit; color: inherit
   background: var(--surface-raised);
   color: var(--text);
   border-radius: var(--radius-sm);
-  padding: 6px 8px;
-  min-height: 32px;
-  min-width: 120px;
+  padding: 4px;
+  min-width: 140px;
 }
-.audit-filters .btn { margin-left: auto; }
+.audit-filters .field select option {
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.audit-filters .field select option:checked {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.audit-filters .btn { margin-top: 12px; }
+
+.cell-session__score {
+  display: inline-block;
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: var(--success-soft);
+  color: var(--success);
+}
+.cell-session__score--baixo {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
 
 /* Tabela de auditoria */
 
