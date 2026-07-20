@@ -216,6 +216,32 @@
     el.style.width = pct + '%';
   }
 
+  var DIAS_SEMANA_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+  function renderBarChart(elId, valores, labels) {
+    var container = $(elId);
+    var max = Math.max.apply(null, valores.concat([1]));
+    container.innerHTML = valores.map(function (v, i) {
+      var alturaPct = Math.max(2, Math.round((v / max) * 100));
+      return '' +
+        '<div class="bar-chart__col">' +
+          '<span class="bar-chart__value">' + fmtNumber(v) + '</span>' +
+          '<div class="bar-chart__bar" style="height:' + alturaPct + '%"></div>' +
+          '<span class="bar-chart__label">' + labels[i] + '</span>' +
+        '</div>';
+    }).join('');
+  }
+
+  function fmtDuracao(segundos) {
+    if (segundos === null || segundos === undefined) return '—';
+    if (segundos < 60) return segundos + 's';
+    var min = Math.round(segundos / 60);
+    if (min < 60) return min + ' min';
+    var horas = Math.floor(min / 60);
+    var minRestantes = min % 60;
+    return horas + 'h' + (minRestantes ? ' ' + minRestantes + 'min' : '');
+  }
+
   function loadMetrics() {
     $('visao-error').hidden = true;
     $('visao-empty').hidden = true;
@@ -240,6 +266,9 @@
         var totalPeriodo = (data.atendimentos_concluidos || 0) + (data.atendimentos_criados || 0);
         renderBar('bar-concluidos', data.atendimentos_concluidos || 0, totalPeriodo);
         $('hint-concluidos').textContent = fmtNumber(data.atendimentos_concluidos) + ' de ' + fmtNumber(totalPeriodo) + ' atendimentos';
+
+        renderBarChart('chart-dia-semana', data.distribuicao_dia_semana || [0, 0, 0, 0, 0, 0, 0], DIAS_SEMANA_LABELS);
+        $('m-tempo-resposta').textContent = fmtDuracao(data.tempo_resposta_medio_seg);
 
         var semDados = !data.atendimentos_em_aberto && !data.atendimentos_concluidos && !data.atendimentos_criados;
         $('visao-empty').hidden = !semDados;
@@ -289,6 +318,9 @@
       : '<span class="cell-session__name cell-session__name--plain">' + nomeCliente + '</span>';
 
     var scoreHtml = (a.score_efetividade === null || a.score_efetividade === undefined) ? '—' : a.score_efetividade;
+    var scoreInlineHtml = (a.score_efetividade === null || a.score_efetividade === undefined)
+      ? ''
+      : '<span class="cell-session__score' + (a.score_efetividade < 60 ? ' cell-session__score--baixo' : '') + '">' + a.score_efetividade + '</span>';
     var subScores = (a.compreensao_demanda_score !== null && a.compreensao_demanda_score !== undefined)
       ? '<br><span class="sub-score">C ' + a.compreensao_demanda_score + ' · P ' + a.precisao_resposta_score + ' · E ' + a.esforco_cliente_score + ' · Enc ' + a.encaminhamento_score + '</span>'
       : '';
@@ -296,7 +328,7 @@
     return '' +
       '<tr>' +
         '<td class="cell-session">' +
-          clienteHtml +
+          clienteHtml + scoreInlineHtml + '<br>' +
           escapeHtml(a.session_id || '') +
         '</td>' +
         '<td>' + fmtDateTime(a.avaliado_em) + '</td>' +
@@ -311,18 +343,22 @@
       '</tr>';
   }
 
+  function selectedValues(id) {
+    return Array.prototype.slice.call($(id).selectedOptions).map(function (o) { return o.value; });
+  }
+
   function classificationFilterParams() {
     return {
-      filtro_canal: $('filtro-canal').value,
-      filtro_info_processual: $('filtro-info').value,
-      filtro_alucinacao: $('filtro-alucinacao').value,
-      filtro_insatisfacao: $('filtro-insatisfacao').value,
-      filtro_golpe: $('filtro-golpe').value,
-      filtro_transferencia: $('filtro-transferencia').value,
-      filtro_sem_resposta: $('filtro-sem-resposta').value,
-      filtro_transferido_sem_resposta: $('filtro-transferido-sem-resposta').value,
-      filtro_sem_aceite: $('filtro-sem-aceite').value,
-      filtro_falha_critica: $('filtro-falha-critica').value
+      filtro_canal: selectedValues('filtro-canal').join(','),
+      filtro_info_processual: selectedValues('filtro-info').join(','),
+      filtro_alucinacao: selectedValues('filtro-alucinacao').join(','),
+      filtro_insatisfacao: selectedValues('filtro-insatisfacao').join(','),
+      filtro_golpe: selectedValues('filtro-golpe').join(','),
+      filtro_transferencia: selectedValues('filtro-transferencia').join(','),
+      filtro_sem_resposta: selectedValues('filtro-sem-resposta').join(','),
+      filtro_transferido_sem_resposta: selectedValues('filtro-transferido-sem-resposta').join(','),
+      filtro_sem_aceite: selectedValues('filtro-sem-aceite').join(','),
+      filtro_falha_critica: selectedValues('filtro-falha-critica').join(',')
     };
   }
 
@@ -491,7 +527,9 @@
   });
 
   $('limpar-filtros-auditoria').addEventListener('click', function () {
-    FILTROS_AUDITORIA_IDS.forEach(function (id) { $(id).value = ''; });
+    FILTROS_AUDITORIA_IDS.forEach(function (id) {
+      Array.prototype.slice.call($(id).options).forEach(function (opt) { opt.selected = false; });
+    });
     state.page = 1;
     loadAuditoria();
   });
@@ -543,7 +581,7 @@
       btn.title = 'Link de suporte ainda não configurado';
     } else {
       btn.href = SUPPORT_CHAT_URL;
-      btn.title = 'Falar com o suporte';
+      btn.title = 'Contatar o suporte';
     }
   }
 
