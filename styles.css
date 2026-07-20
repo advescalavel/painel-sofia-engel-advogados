@@ -1,6 +1,6 @@
 :root {
   /* Base escura */
-  --bg:            #0A0A12;
+  --bg:            #2E294F;
   --surface:       #14131F;
   --surface-raised:#1B1A29;
   --border:        #29273D;
@@ -10,8 +10,8 @@
 
   /* Marca (Advocacia Escalável) */
   --accent:        #F0508F;
-  --accent-dim:    #B23568;
-  --accent-soft:   rgba(240, 80, 143, 0.14);
+  --accent-dim:    #C4026E;
+  --accent-soft:   rgba(255, 3, 143, 0.14);
 
   /* Status semânticos */
   --warn:          #F0A94E;
@@ -32,23 +32,23 @@
   --radius-sm: 8px;
   --radius-full: 999px;
 
-  --pill-active-bg:   #F3F1F8;
+  --pill-active-bg:   #2B2B6E;
   --pill-active-text: #171622;
 }
 
 [data-theme="light"] {
-  --pill-active-bg:   #201A38;
-  --pill-active-text: #F6F5FA;
+  --pill-active-bg:   ##2B2B6E;
+  --pill-active-text: #FFFFFF;
 
   --bg:            #F6F5FA;
   --surface:       #FFFFFF;
   --surface-raised:#F8F7FC;
   --border:        #E3E1EE;
-  --text:          #201A38;
+  --text:          #2B2B6E;
   --text-soft:     #6B6480;
   --text-faint:    #8B87A0;
 
-  --accent:        #C6316F;
+  --accent:        #FF038F;
   --accent-dim:    #A3285C;
   --accent-soft:   #FBEAF1;
 
