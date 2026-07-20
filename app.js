@@ -216,26 +216,6 @@
     el.style.width = pct + '%';
   }
 
-  function fmtPct(v) {
-    return (v === null || v === undefined) ? '—' : v + '%';
-  }
-
-  function renderHistoricoBanner(historico, periodoTipo) {
-    var banner = $('historico-banner');
-    if (!historico) { banner.hidden = true; return; }
-
-    banner.hidden = false;
-    $('h-criados').textContent = fmtNumber(historico.atendimentos_criados);
-    $('h-concluidos').textContent = fmtNumber(historico.atendimentos_concluidos) + ' (' + fmtPct(historico.pct_concluidos) + ')';
-    $('h-transferidos').textContent = fmtNumber(historico.atendimentos_transferidos) + ' (' + fmtPct(historico.pct_transferidos) + ')';
-    $('h-efetividade').textContent = fmtPct(historico.efetividade_sofia_pct);
-
-    var nota = (periodoTipo === 'meses_especificos' || periodoTipo === 'mes_atual')
-      ? '(até 15/07/2026 — a partir de 16/07 os dados são do Vigia, exibidos abaixo)'
-      : '(até 15/07/2026)';
-    $('historico-periodo-nota').textContent = nota;
-  }
-
   function loadMetrics() {
     $('visao-error').hidden = true;
     $('visao-empty').hidden = true;
@@ -246,51 +226,23 @@
       .then(function (data) {
         setConnection(true);
 
-        var historico = data.historico || null;
-        var vigia = data.vigia || {};
-
-        renderHistoricoBanner(historico, state.periodo);
-
-        // Tiles sempre-atuais (snapshot "agora"), independentes do período selecionado
-        $('m-em-aberto').textContent = fmtNumber(vigia.atendimentos_em_aberto);
-        $('m-sem-resposta').textContent = fmtNumber(vigia.sem_resposta_24h);
-        $('m-transferido-sem-resposta').textContent = fmtNumber(vigia.transferidos_sem_resposta);
-        $('m-sem-aceite').textContent = fmtNumber(vigia.colaborador_nao_aceitou);
-
-        // Tiles dependentes do período (só existem a partir de 16/07/2026 — dados do Vigia)
-        var temDadosVigiaNoPeriodo = (vigia.atendimentos_criados || 0) > 0 || (vigia.atendimentos_concluidos || 0) > 0 || vigia.efetividade_sofia_pct !== null;
-        var mostrarTilesVigia = !historico || temDadosVigiaNoPeriodo;
-
-        document.querySelectorAll('.vigia-period-tile').forEach(function (el) {
-          el.classList.toggle('is-sem-dados', !mostrarTilesVigia);
-        });
-
-        var notaVigia = $('vigia-periodo-nota');
-        if (historico && temDadosVigiaNoPeriodo) {
-          notaVigia.hidden = false;
-          notaVigia.textContent = 'Tiles abaixo referem-se apenas à parte do período a partir de 16/07/2026 (Vigia).';
-        } else if (historico && !temDadosVigiaNoPeriodo) {
-          notaVigia.hidden = false;
-          notaVigia.textContent = 'Sem dados do Vigia neste período — período inteiro coberto pelo painel antigo acima.';
-        } else {
-          notaVigia.hidden = true;
-        }
-
-        var efetividade = mostrarTilesVigia ? vigia.efetividade_sofia_pct : null;
-        $('m-efetividade').textContent = fmtPct(efetividade);
+        var efetividade = data.efetividade_sofia_pct;
+        $('m-efetividade').textContent = (efetividade === null || efetividade === undefined) ? '—' : efetividade + '%';
         renderBar('bar-efetividade', efetividade || 0, 100);
 
-        var criados = mostrarTilesVigia ? vigia.atendimentos_criados : null;
-        var concluidos = mostrarTilesVigia ? vigia.atendimentos_concluidos : null;
-        $('m-criados').textContent = fmtNumber(criados);
-        $('m-concluidos').textContent = fmtNumber(concluidos);
+        $('m-em-aberto').textContent = fmtNumber(data.atendimentos_em_aberto);
+        $('m-criados').textContent = fmtNumber(data.atendimentos_criados);
+        $('m-concluidos').textContent = fmtNumber(data.atendimentos_concluidos);
+        $('m-sem-resposta').textContent = fmtNumber(data.sem_resposta_24h);
+        $('m-transferido-sem-resposta').textContent = fmtNumber(data.transferidos_sem_resposta);
+        $('m-sem-aceite').textContent = fmtNumber(data.colaborador_nao_aceitou);
 
-        var totalPeriodo = (concluidos || 0) + (criados || 0);
-        renderBar('bar-concluidos', concluidos || 0, totalPeriodo);
-        $('hint-concluidos').textContent = fmtNumber(concluidos) + ' de ' + fmtNumber(totalPeriodo) + ' atendimentos';
+        var totalPeriodo = (data.atendimentos_concluidos || 0) + (data.atendimentos_criados || 0);
+        renderBar('bar-concluidos', data.atendimentos_concluidos || 0, totalPeriodo);
+        $('hint-concluidos').textContent = fmtNumber(data.atendimentos_concluidos) + ' de ' + fmtNumber(totalPeriodo) + ' atendimentos';
 
-        var semDadosNenhumBloco = !historico && !vigia.atendimentos_em_aberto && !vigia.atendimentos_concluidos && !vigia.atendimentos_criados;
-        $('visao-empty').hidden = !semDadosNenhumBloco;
+        var semDados = !data.atendimentos_em_aberto && !data.atendimentos_concluidos && !data.atendimentos_criados;
+        $('visao-empty').hidden = !semDados;
         markFetched();
       })
       .catch(function (err) {
