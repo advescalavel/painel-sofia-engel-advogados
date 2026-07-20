@@ -1,17 +1,18 @@
 :root {
-  /* Base escura */
-  --bg:            #0A0A12;
-  --surface:       #14131F;
-  --surface-raised:#1B1A29;
-  --border:        #29273D;
+  /* Base escura — derivada da cor complementar de marca #2E294F */
+  --bg:            #171428;
+  --surface:       #211E39;
+  --surface-raised:#2E294F;
+  --border:        #423D66;
   --text:          #F3F1F8;
-  --text-soft:     #9491AC;
-  --text-faint:    #615E78;
+  --text-soft:     #A19FB0;
+  --text-faint:    #7E7C93;
 
-  /* Marca (Advocacia Escalável) */
-  --accent:        #F0508F;
-  --accent-dim:    #B23568;
-  --accent-soft:   rgba(240, 80, 143, 0.14);
+  /* Marca (Advocacia Escalável): #2B2B6E (primária) + #FF038F (destaque) */
+  --brand-primary: #2B2B6E;
+  --accent:        #FF038F;
+  --accent-dim:    #BF026B;
+  --accent-soft:   rgba(255, 3, 143, 0.14);
 
   /* Status semânticos */
   --warn:          #F0A94E;
@@ -32,25 +33,26 @@
   --radius-sm: 8px;
   --radius-full: 999px;
 
-  --pill-active-bg:   #F3F1F8;
-  --pill-active-text: #171622;
+  --pill-active-bg:   #2B2B6E;
+  --pill-active-text: #FFFFFF;
 }
 
 [data-theme="light"] {
-  --pill-active-bg:   #201A38;
-  --pill-active-text: #F6F5FA;
+  --pill-active-bg:   #2B2B6E;
+  --pill-active-text: #FFFFFF;
 
-  --bg:            #F6F5FA;
+  --bg:            #FFFFFF;
   --surface:       #FFFFFF;
-  --surface-raised:#F8F7FC;
-  --border:        #E3E1EE;
-  --text:          #201A38;
-  --text-soft:     #6B6480;
-  --text-faint:    #8B87A0;
+  --surface-raised:#F2F2F4;
+  --border:        #E6E5EA;
+  --text:          #2E294F;
+  --text-soft:     #77748D;
+  --text-faint:    #9694A7;
 
-  --accent:        #C6316F;
-  --accent-dim:    #A3285C;
-  --accent-soft:   #FBEAF1;
+  --brand-primary: #2B2B6E;
+  --accent:        #FF038F;
+  --accent-dim:    #B80267;
+  --accent-soft:   #FFE5F3;
 
   --warn:          #B5691F;
   --warn-soft:     #FBF0E1;
@@ -90,7 +92,7 @@ button, input, select { font-family: inherit; font-size: inherit; color: inherit
 }
 
 .app {
-  max-width: 1180px;
+  max-width: min(1600px, 96vw);
   margin: 0 auto;
   padding: 28px 24px 56px;
 }
@@ -764,7 +766,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .score-cell { font-family: var(--font-mono); font-weight: 600; }
 
 .justificativa {
-  max-width: 320px;
+  max-width: 420px;
   font-size: 12px;
   color: var(--text-soft);
 }
