@@ -104,34 +104,20 @@
 
         <p class="section-label" id="periodo-label">Dados do período</p>
 
-        <div class="historico-banner" id="historico-banner" hidden>
-          <p class="historico-banner__label">
-            Dados congelados do painel antigo <span id="historico-periodo-nota"></span>
-          </p>
-          <div class="historico-banner__stats">
-            <span class="historico-stat"><strong id="h-criados">—</strong><small>criados</small></span>
-            <span class="historico-stat"><strong id="h-concluidos">—</strong><small>encerrados</small></span>
-            <span class="historico-stat"><strong id="h-transferidos">—</strong><small>transferidos</small></span>
-            <span class="historico-stat"><strong id="h-efetividade">—</strong><small>efetividade</small></span>
-          </div>
-        </div>
-
-        <p class="vigia-periodo-nota" id="vigia-periodo-nota" hidden></p>
-
-        <div class="cards-grid" id="cards-grid">
+        <div class="cards-grid">
           <article class="metric-card">
             <span class="metric-card__head"><i class="dot dot--warn"></i>Em aberto</span>
             <span class="metric-card__value" id="m-em-aberto">—</span>
             <span class="metric-card__hint">aguardando resposta agora</span>
           </article>
 
-          <article class="metric-card vigia-period-tile">
+          <article class="metric-card">
             <span class="metric-card__head"><i class="dot dot--muted"></i>Atendimentos criados</span>
             <span class="metric-card__value" id="m-criados">—</span>
-            <span class="metric-card__hint">no período (Vigia)</span>
+            <span class="metric-card__hint">no período</span>
           </article>
 
-          <article class="metric-card vigia-period-tile">
+          <article class="metric-card">
             <span class="metric-card__head"><i class="dot dot--success"></i>Atendimentos concluídos</span>
             <span class="metric-card__value" id="m-concluidos">—</span>
             <div class="progress"><div class="progress__fill progress__fill--success" id="bar-concluidos"></div></div>
@@ -144,11 +130,11 @@
             <span class="metric-card__hint">agora, sem filtro de período — exclui encerramentos/agradecimentos</span>
           </article>
 
-          <article class="metric-card vigia-period-tile">
+          <article class="metric-card">
             <span class="metric-card__head"><i class="dot dot--success"></i>Efetividade da Sofia</span>
             <span class="metric-card__value" id="m-efetividade">—</span>
             <div class="progress"><div class="progress__fill progress__fill--success" id="bar-efetividade"></div></div>
-            <span class="metric-card__hint">score médio no período (Vigia)</span>
+            <span class="metric-card__hint">score médio no período</span>
           </article>
 
           <article class="metric-card">
