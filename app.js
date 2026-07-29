@@ -12,7 +12,7 @@
   var PAGE_SIZE = 20;
 
   // Link do chat de suporte
-  var SUPPORT_CHAT_URL = 'https://www.bitrix24.net/oauth/select/?preset=im&IM_DIALOG=networkLines2c241bdd31ccc82c8bb67b64d6de9d1f';
+  var SUPPORT_CHAT_URL = 'https://engeladvogados.bitrix24.com.br/online/?IM_DIALOG=67807';
 
   var MESES_NOMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
