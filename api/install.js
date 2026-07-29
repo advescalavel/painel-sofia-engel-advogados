@@ -4,18 +4,15 @@ export default function handler(req, res) {
 <html>
 <head>
   <meta charset="utf-8">
-  <script src="https://api.bitrix24.com/api/v1/"></script>
+  <script src="//api.bitrix24.com/b24.js"></script>
 </head>
 <body>
   <p>Finalizando instalação...</p>
 
   <script>
     BX24.init(function () {
+      console.log("BX24 iniciado");
       BX24.installFinish();
-
-      setTimeout(function () {
-        window.location.href = "/";
-      }, 500);
     });
   </script>
 </body>
