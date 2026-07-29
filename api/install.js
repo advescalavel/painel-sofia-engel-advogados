@@ -10,11 +10,17 @@ export default function handler(req, res) {
   <p>Finalizando instalação...</p>
 
   <script>
+console.log("window.BX24 =", window.BX24);
+
+if (!window.BX24) {
+    console.error("SDK do Bitrix não carregou.");
+} else {
     BX24.init(function () {
-      console.log("BX24 iniciado");
-      BX24.installFinish();
+        console.log("BX24 iniciado");
+        BX24.installFinish();
     });
-  </script>
+}
+</script>
 </body>
 </html>
   `);
