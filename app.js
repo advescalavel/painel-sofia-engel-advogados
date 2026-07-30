@@ -586,6 +586,38 @@
   }
 
   // -----------------------------------------------------------------------
+  // Sessão Bitrix24 (tokens + identificação de acesso)
+  // -----------------------------------------------------------------------
+  // Chamado uma vez a cada abertura do painel, logo após BX24.init().
+  // Não bloqueia nem restringe nada no painel: apenas repassa ao back-end
+  // os tokens já fornecidos pela sessão do próprio usuário (via
+  // BX24.getAuth()) para eles ficarem frescos no Supabase, e permite que o
+  // back-end registre quem acessou.
+  function registrarSessao() {
+    try {
+      if (!window.BX24 || typeof window.BX24.getAuth !== 'function') return;
+      var auth = window.BX24.getAuth();
+      if (!auth || !auth.member_id) return;
+
+      fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberId: auth.member_id,
+          domain: auth.domain,
+          accessToken: auth.access_token,
+          refreshToken: auth.refresh_token,
+          expiresIn: auth.expires_in
+        })
+      }).catch(function (err) {
+        console.warn('Não foi possível registrar a sessão:', err);
+      });
+    } catch (e) {
+      console.warn('Falha ao capturar contexto de autenticação Bitrix24:', e);
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Inicialização
   // -----------------------------------------------------------------------
   function init() {
@@ -598,6 +630,7 @@
     if (window.BX24 && typeof window.BX24.init === 'function') {
       window.BX24.init(function () {
         if (typeof window.BX24.fitWindow === 'function') window.BX24.fitWindow();
+        registrarSessao();
       });
     }
   }
