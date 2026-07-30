@@ -270,7 +270,7 @@
         var iaPuraPct = data.atendimentos_ia_pura_pct;
         $('m-ia-pura').textContent = (iaPuraPct === null || iaPuraPct === undefined) ? '—' : iaPuraPct + '%';
         renderBar('bar-ia-pura', iaPuraPct || 0, 100);
-        $('hint-ia-pura').textContent = fmtNumber(data.atendimentos_concluidos_ia_pura) + ' de ' + fmtNumber(data.atendimentos_concluidos_base_ia_pura) + ' atendimentos concluídos, sem interação humana (dados a partir de 16/07/2026)';
+        $('hint-ia-pura').textContent = fmtNumber(data.atendimentos_concluidos_ia_pura) + ' de ' + fmtNumber(data.atendimentos_concluidos_base_ia_pura) + ' atendimentos concluídos, sem interação humana';
 
         renderBarChart('chart-dia-semana', data.distribuicao_dia_semana || [0, 0, 0, 0, 0, 0, 0], DIAS_SEMANA_LABELS);
         $('m-tempo-resposta').textContent = fmtDuracao(data.tempo_resposta_medio_seg);
