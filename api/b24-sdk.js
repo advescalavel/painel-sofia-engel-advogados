@@ -9,7 +9,18 @@
 // proprio dominio, esse bloqueio deixa de se aplicar.
 export default async function handler(req, res) {
   try {
-    const upstream = await fetch('https://api.bitrix24.com/b24.js');
+    const upstream = await fetch('https://api.bitrix24.com/b24.js', {
+      headers: {
+        // O CDN da Bitrix parece recusar (403) requisicoes sem contexto
+        // de navegador/pagina -- uma chamada servidor-a-servidor nao tem
+        // Referer/Origin/User-Agent por padrao. Simulamos os headers de
+        // uma pagina real do portal para contornar isso.
+        Referer: 'https://engeladvogados.bitrix24.com.br/',
+        Origin: 'https://engeladvogados.bitrix24.com.br',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+      },
+    });
 
     if (!upstream.ok) {
       res.status(502).send('// Falha ao buscar o SDK do Bitrix24 (upstream ' + upstream.status + ')');
