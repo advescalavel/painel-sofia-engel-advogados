@@ -23,7 +23,23 @@ export default async function handler(req, res) {
     });
 
     if (!upstream.ok) {
-      res.status(502).send('// Falha ao buscar o SDK do Bitrix24 (upstream ' + upstream.status + ')');
+      const bodySnippet = await upstream.text().catch(() => '');
+      const headersDump = {};
+      upstream.headers.forEach((value, key) => {
+        headersDump[key] = value;
+      });
+
+      console.error('Falha ao buscar b24.js:', {
+        status: upstream.status,
+        headers: headersDump,
+        bodySnippet: bodySnippet.slice(0, 500),
+      });
+
+      res.status(502).send(
+        '// Falha ao buscar o SDK do Bitrix24 (upstream ' + upstream.status + ')\n' +
+        '// Headers: ' + JSON.stringify(headersDump) + '\n' +
+        '// Corpo (inicio): ' + bodySnippet.slice(0, 500).replace(/\*\//g, '* /')
+      );
       return;
     }
 
