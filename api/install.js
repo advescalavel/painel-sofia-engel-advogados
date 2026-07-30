@@ -39,7 +39,7 @@ export default async function handler(req, res) {
     <html>
       <head><meta charset="utf-8" /></head>
       <body>
-        <script src="https://api.bitrix24.com/b24.js"></script>
+        <script src="//api.bitrix24.com/api/v1/"></script>
         <script>
           // Finaliza o handshake de instalacao do app (BX24.installFinish).
           // Enquanto isso nao for chamado, o Bitrix24 marca o app como
