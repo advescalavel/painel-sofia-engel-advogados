@@ -788,3 +788,30 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-size: 13px;
   color: var(--text-soft);
 }
+
+/* Observação de auditoria (Laila -> Mell) */
+.observacao-cell {
+  min-width: 200px;
+}
+.observacao-texto {
+  width: 100%;
+  min-height: 44px;
+  resize: vertical;
+  font: inherit;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border, #ddd);
+  box-sizing: border-box;
+}
+.btn--small {
+  font-size: 12px;
+  padding: 4px 10px;
+  margin-top: 6px;
+}
+.observacao-status {
+  display: block;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.observacao-status--ok { color: var(--success, #1e8e3e); }
+.observacao-status--erro { color: var(--danger, #d93025); }
