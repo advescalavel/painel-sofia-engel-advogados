@@ -7,6 +7,7 @@
   var API_BASE = 'https://webhook.prod.advocaciaescalaveldev.shop/webhook';
   var METRICS_URL = API_BASE + '/painel-sucesso-cliente-metricas';
   var AUDITORIA_URL = API_BASE + '/painel-sucesso-cliente-auditoria';
+  var OBSERVACAO_URL = API_BASE + '/painel-sucesso-cliente-observacao';
   var AUTO_REFRESH_MS = 3600000; // 1h — intencionalmente lento, para não mudar números durante reuniões/apresentações
   var STALE_AFTER_MS = 75 * 60 * 1000;
   var PAGE_SIZE = 20;
@@ -345,7 +346,46 @@
         '<td>' + badge(a.insatisfacao_com_escritorio) + '</td>' +
         '<td>' + badge(a.alerta_golpe_repassado) + '</td>' +
         '<td>' + badge(a.transferencia_confirmada) + '</td>' +
+        '<td class="observacao-cell">' +
+          '<textarea class="observacao-texto" data-session-id="' + escapeHtml(a.session_id || '') + '" placeholder="Ponderação, observação ou feedback sobre este atendimento..." rows="2"></textarea>' +
+          '<button type="button" class="btn btn--ghost btn--small observacao-enviar" data-session-id="' + escapeHtml(a.session_id || '') + '">Enviar para Mell</button>' +
+          '<span class="observacao-status" data-session-id="' + escapeHtml(a.session_id || '') + '"></span>' +
+        '</td>' +
       '</tr>';
+  }
+
+  function enviarObservacao(sessionId, textarea, statusEl, botao) {
+    var texto = (textarea.value || '').trim();
+    if (!texto) {
+      statusEl.textContent = 'Escreva algo antes de enviar.';
+      statusEl.className = 'observacao-status observacao-status--erro';
+      return;
+    }
+    botao.disabled = true;
+    statusEl.textContent = 'Enviando...';
+    statusEl.className = 'observacao-status';
+
+    fetch(OBSERVACAO_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, texto: texto, autor: 'Laila' })
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error('Falha ao enviar (' + res.status + ')');
+        return res.json();
+      })
+      .then(function () {
+        statusEl.textContent = 'Enviado para a Mell.';
+        statusEl.className = 'observacao-status observacao-status--ok';
+        textarea.value = '';
+      })
+      .catch(function (err) {
+        statusEl.textContent = 'Não foi possível enviar (' + err.message + ').';
+        statusEl.className = 'observacao-status observacao-status--erro';
+      })
+      .finally(function () {
+        botao.disabled = false;
+      });
   }
 
   function selectedValues(id) {
@@ -514,6 +554,16 @@
   // -----------------------------------------------------------------------
   $('tab-visao').addEventListener('click', function () { switchTab('visao'); });
   $('tab-auditoria').addEventListener('click', function () { switchTab('auditoria'); });
+
+  $('audit-tbody').addEventListener('click', function (ev) {
+    var botao = ev.target.closest('.observacao-enviar');
+    if (!botao) return;
+    var sessionId = botao.getAttribute('data-session-id');
+    var td = botao.closest('.observacao-cell');
+    var textarea = td.querySelector('.observacao-texto');
+    var statusEl = td.querySelector('.observacao-status');
+    enviarObservacao(sessionId, textarea, statusEl, botao);
+  });
 
   $('pag-anterior').addEventListener('click', function () {
     if (state.page > 1) { state.page -= 1; loadAuditoria(); }
