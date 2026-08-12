@@ -8,6 +8,8 @@
   var METRICS_URL = API_BASE + '/painel-sucesso-cliente-metricas';
   var AUDITORIA_URL = API_BASE + '/painel-sucesso-cliente-auditoria';
   var OBSERVACAO_URL = API_BASE + '/painel-sucesso-cliente-observacao';
+  var QH_URL = API_BASE + '/painel-sucesso-cliente-auditoria-humana';
+  var QH_SALVAR_URL = API_BASE + '/painel-sucesso-cliente-auditoria-humana-salvar';
   var AUTO_REFRESH_MS = 3600000; // 1h — intencionalmente lento, para não mudar números durante reuniões/apresentações
   var STALE_AFTER_MS = 75 * 60 * 1000;
   var PAGE_SIZE = 20;
@@ -34,6 +36,7 @@
   var state = {
     tab: 'visao',
     page: 1,
+    qhPage: 1,
     periodo: 'hoje',
     semanasSelecionadas: [],
     mesesSelecionados: [],
@@ -103,11 +106,13 @@
     var texto = 'Dados ' + (PERIODO_LABELS[state.periodo] || 'do período');
     $('periodo-label').textContent = texto;
     $('periodo-label-auditoria').textContent = texto;
+    $('periodo-label-qh').textContent = texto;
   }
 
   function selectPeriod(tipo) {
     state.periodo = tipo;
     state.page = 1;
+    state.qhPage = 1;
     renderPeriodSelection();
     closeAllPopovers();
     loadActiveTab();
@@ -450,24 +455,199 @@
   }
 
   // -----------------------------------------------------------------------
+  // Qualidade Humana (auditoria seletiva da gestão)
+  // -----------------------------------------------------------------------
+  var CRITERIOS_QH = [
+    { id: 'objetividade', label: 'Objetividade' },
+    { id: 'simplicidade', label: 'Simplicidade' },
+    { id: 'velocidade', label: 'Velocidade' },
+    { id: 'previsibilidade', label: 'Previsibilidade' }
+  ];
+
+  function statusBadgeQH(auditado) {
+    return auditado
+      ? '<span class="badge badge--true">Auditado</span>'
+      : '<span class="badge badge--null">Pendente</span>';
+  }
+
+  function renderQHFormRow(a) {
+    var sid = escapeHtml(a.session_id || '');
+    var campos = CRITERIOS_QH.map(function (c) {
+      var valorAtual = a[c.id + '_score'];
+      var valor = (valorAtual === null || valorAtual === undefined) ? '' : valorAtual;
+      return '' +
+        '<label class="qh-form__campo">' + c.label + ' (0–100)' +
+          '<input type="number" min="0" max="100" step="1" class="qh-input-score" data-criterio="' + c.id + '" value="' + valor + '" />' +
+        '</label>';
+    }).join('');
+
+    return '' +
+      '<tr class="qh-form-row" id="qh-form-row-' + sid + '" hidden>' +
+        '<td colspan="6">' +
+          '<div class="qh-form" data-session-id="' + sid + '">' +
+            '<div class="qh-form__criterios">' + campos + '</div>' +
+            '<label class="qh-form__campo">Quem está auditando' +
+              '<input type="text" class="qh-input-auditor" placeholder="Seu nome" value="' + escapeHtml(a.auditor || '') + '" />' +
+            '</label>' +
+            '<label class="qh-form__campo qh-form__campo--full">Feedback / observação' +
+              '<textarea class="qh-input-feedback" rows="2" placeholder="Pontos fortes, pontos de atenção...">' + escapeHtml(a.feedback || '') + '</textarea>' +
+            '</label>' +
+            '<label class="qh-form__campo qh-form__campo--full">Necessidade de treinamento identificada' +
+              '<textarea class="qh-input-treinamento" rows="2" placeholder="Ex.: linguagem técnica demais, falta de estimativa de prazo...">' + escapeHtml(a.necessidade_treinamento || '') + '</textarea>' +
+            '</label>' +
+            '<div class="qh-form__acoes">' +
+              '<button type="button" class="btn btn--accent btn--small qh-salvar" data-session-id="' + sid + '">Salvar auditoria</button>' +
+              '<span class="qh-status" data-session-id="' + sid + '"></span>' +
+            '</div>' +
+          '</div>' +
+        '</td>' +
+      '</tr>';
+  }
+
+  function renderQHRow(a) {
+    var sid = escapeHtml(a.session_id || '');
+    var nomeCliente = escapeHtml(a.cliente || 'Não informado');
+    var clienteHtml = a.chat_id
+      ? '<a class="cell-session__name cell-session__link" href="https://engeladvogados.bitrix24.com.br/online/?IM_DIALOG=chat' + encodeURIComponent(a.chat_id) + '" target="_blank" rel="noopener">' + nomeCliente + '</a>'
+      : '<span class="cell-session__name cell-session__name--plain">' + nomeCliente + '</span>';
+    var score = (a.score_efetividade_humano === null || a.score_efetividade_humano === undefined) ? '—' : a.score_efetividade_humano;
+    var botaoLabel = a.auditado ? 'Editar auditoria' : 'Auditar';
+
+    var linhaDados = '' +
+      '<tr>' +
+        '<td class="cell-session">' + clienteHtml + '<br>' + sid + '</td>' +
+        '<td>' + escapeHtml(a.colaborador_responsavel || 'Não informado') + '</td>' +
+        '<td>' + fmtDateTime(a.iniciado_em) + '</td>' +
+        '<td>' + statusBadgeQH(a.auditado) + '</td>' +
+        '<td class="score-cell">' + score + '</td>' +
+        '<td><button type="button" class="btn btn--ghost btn--small qh-toggle" data-session-id="' + sid + '">' + botaoLabel + '</button></td>' +
+      '</tr>';
+
+    return linhaDados + renderQHFormRow(a);
+  }
+
+  function classificationFilterParamsQH() {
+    return {
+      filtro_status: $('filtro-qh-status').value || '',
+      filtro_colaborador: ($('filtro-qh-colaborador').value || '').trim()
+    };
+  }
+
+  function loadQualidadeHumana() {
+    $('qh-error').hidden = true;
+    $('qh-empty').hidden = true;
+    $('qh-pagination').hidden = true;
+
+    var params = currentPeriodParams();
+    params.page = state.qhPage;
+    params.pageSize = PAGE_SIZE;
+    Object.assign(params, classificationFilterParamsQH());
+
+    var url = QH_URL + '?' + toQueryString(params);
+
+    return fetchJson(url)
+      .then(function (data) {
+        setConnection(true);
+        var rows = data.atendimentos || [];
+        var tbody = $('qh-tbody');
+
+        if (rows.length === 0) {
+          tbody.innerHTML = '';
+          $('qh-empty').hidden = false;
+        } else {
+          tbody.innerHTML = rows.map(renderQHRow).join('');
+        }
+
+        var totalPages = Math.max(1, Math.ceil((data.total || 0) / (data.pageSize || PAGE_SIZE)));
+        $('qh-pag-info').textContent = 'Página ' + data.page + ' de ' + totalPages + ' · ' + data.total + ' atendimentos';
+        $('qh-pag-anterior').disabled = data.page <= 1;
+        $('qh-pag-proxima').disabled = data.page >= totalPages;
+        $('qh-pagination').hidden = rows.length === 0 && data.page === 1;
+
+        markFetched();
+      })
+      .catch(function (err) {
+        setConnection(false);
+        var el = $('qh-error');
+        el.hidden = false;
+        el.textContent = 'Não foi possível carregar a auditoria humana agora (' + err.message + '). Tente novamente em instantes.';
+        $('qh-tbody').innerHTML = '';
+      });
+  }
+
+  function salvarAuditoriaHumana(sessionId, formEl, statusEl, botao) {
+    var payload = { session_id: sessionId };
+    payload.auditor = (formEl.querySelector('.qh-input-auditor').value || '').trim();
+
+    CRITERIOS_QH.forEach(function (c) {
+      var input = formEl.querySelector('.qh-input-score[data-criterio="' + c.id + '"]');
+      var valor = (input.value || '').trim();
+      payload[c.id + '_score'] = valor === '' ? null : Number(valor);
+    });
+
+    payload.feedback = (formEl.querySelector('.qh-input-feedback').value || '').trim();
+    payload.necessidade_treinamento = (formEl.querySelector('.qh-input-treinamento').value || '').trim();
+
+    if (!payload.auditor) {
+      statusEl.textContent = 'Informe quem está auditando.';
+      statusEl.className = 'qh-status qh-status--erro';
+      return;
+    }
+
+    botao.disabled = true;
+    statusEl.textContent = 'Salvando...';
+    statusEl.className = 'qh-status';
+
+    fetch(QH_SALVAR_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function (res) {
+        return res.json().then(function (body) {
+          if (!res.ok || body.erro) throw new Error(body.mensagem || ('HTTP ' + res.status));
+          return body;
+        });
+      })
+      .then(function () {
+        statusEl.textContent = 'Auditoria salva.';
+        statusEl.className = 'qh-status qh-status--ok';
+        loadQualidadeHumana();
+      })
+      .catch(function (err) {
+        statusEl.textContent = 'Não foi possível salvar (' + err.message + ').';
+        statusEl.className = 'qh-status qh-status--erro';
+      })
+      .finally(function () {
+        botao.disabled = false;
+      });
+  }
+
+  // -----------------------------------------------------------------------
   // Orquestração de abas
   // -----------------------------------------------------------------------
   function loadActiveTab() {
     if (state.tab === 'visao') return loadMetrics();
+    if (state.tab === 'qualidade_humana') return loadQualidadeHumana();
     return loadAuditoria();
   }
 
   function switchTab(tab) {
     state.tab = tab;
     state.page = 1;
+    state.qhPage = 1;
 
-    var isVisao = tab === 'visao';
-    $('painel-visao').hidden = !isVisao;
-    $('painel-auditoria').hidden = isVisao;
-    $('tab-visao').classList.toggle('is-active', isVisao);
-    $('tab-auditoria').classList.toggle('is-active', !isVisao);
-    $('tab-visao').setAttribute('aria-selected', String(isVisao));
-    $('tab-auditoria').setAttribute('aria-selected', String(!isVisao));
+    $('painel-visao').hidden = tab !== 'visao';
+    $('painel-auditoria').hidden = tab !== 'auditoria';
+    $('painel-qualidade-humana').hidden = tab !== 'qualidade_humana';
+
+    $('tab-visao').classList.toggle('is-active', tab === 'visao');
+    $('tab-auditoria').classList.toggle('is-active', tab === 'auditoria');
+    $('tab-qualidade-humana').classList.toggle('is-active', tab === 'qualidade_humana');
+
+    $('tab-visao').setAttribute('aria-selected', String(tab === 'visao'));
+    $('tab-auditoria').setAttribute('aria-selected', String(tab === 'auditoria'));
+    $('tab-qualidade-humana').setAttribute('aria-selected', String(tab === 'qualidade_humana'));
 
     loadActiveTab();
   }
@@ -554,6 +734,7 @@
   // -----------------------------------------------------------------------
   $('tab-visao').addEventListener('click', function () { switchTab('visao'); });
   $('tab-auditoria').addEventListener('click', function () { switchTab('auditoria'); });
+  $('tab-qualidade-humana').addEventListener('click', function () { switchTab('qualidade_humana'); });
 
   $('audit-tbody').addEventListener('click', function (ev) {
     var botao = ev.target.closest('.observacao-enviar');
@@ -587,6 +768,54 @@
     });
     state.page = 1;
     loadAuditoria();
+  });
+
+  // -----------------------------------------------------------------------
+  // Eventos — aba Qualidade Humana
+  // -----------------------------------------------------------------------
+  $('qh-tbody').addEventListener('click', function (ev) {
+    var toggleBtn = ev.target.closest('.qh-toggle');
+    if (toggleBtn) {
+      var sid = toggleBtn.getAttribute('data-session-id');
+      var formRow = $('qh-form-row-' + sid);
+      if (formRow) formRow.hidden = !formRow.hidden;
+      return;
+    }
+    var salvarBtn = ev.target.closest('.qh-salvar');
+    if (salvarBtn) {
+      var sessionId = salvarBtn.getAttribute('data-session-id');
+      var formEl = salvarBtn.closest('.qh-form');
+      var statusEl = formEl.querySelector('.qh-status');
+      salvarAuditoriaHumana(sessionId, formEl, statusEl, salvarBtn);
+    }
+  });
+
+  $('filtro-qh-status').addEventListener('change', function () {
+    state.qhPage = 1;
+    loadQualidadeHumana();
+  });
+
+  var qhColaboradorTimer = null;
+  $('filtro-qh-colaborador').addEventListener('input', function () {
+    clearTimeout(qhColaboradorTimer);
+    qhColaboradorTimer = setTimeout(function () {
+      state.qhPage = 1;
+      loadQualidadeHumana();
+    }, 400);
+  });
+
+  $('limpar-filtros-qh').addEventListener('click', function () {
+    $('filtro-qh-status').value = '';
+    $('filtro-qh-colaborador').value = '';
+    state.qhPage = 1;
+    loadQualidadeHumana();
+  });
+
+  $('qh-pag-anterior').addEventListener('click', function () {
+    if (state.qhPage > 1) { state.qhPage -= 1; loadQualidadeHumana(); }
+  });
+  $('qh-pag-proxima').addEventListener('click', function () {
+    state.qhPage += 1; loadQualidadeHumana();
   });
 
   // -----------------------------------------------------------------------
