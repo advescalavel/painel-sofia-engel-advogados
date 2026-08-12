@@ -9,7 +9,6 @@
   var AUDITORIA_URL = API_BASE + '/painel-sucesso-cliente-auditoria';
   var OBSERVACAO_URL = API_BASE + '/painel-sucesso-cliente-observacao';
   var QH_URL = API_BASE + '/painel-sucesso-cliente-auditoria-humana';
-  var QH_SALVAR_URL = API_BASE + '/painel-sucesso-cliente-auditoria-humana-salvar';
   var AUTO_REFRESH_MS = 3600000; // 1h — intencionalmente lento, para não mudar números durante reuniões/apresentações
   var STALE_AFTER_MS = 75 * 60 * 1000;
   var PAGE_SIZE = 20;
@@ -455,53 +454,29 @@
   }
 
   // -----------------------------------------------------------------------
-  // Qualidade Humana (auditoria seletiva da gestão)
+  // Qualidade Humana (análise automática do Vigia + observação da gestão)
   // -----------------------------------------------------------------------
-  var CRITERIOS_QH = [
-    { id: 'objetividade', label: 'Objetividade' },
-    { id: 'simplicidade', label: 'Simplicidade' },
-    { id: 'velocidade', label: 'Velocidade' },
-    { id: 'previsibilidade', label: 'Previsibilidade' }
-  ];
-
   function statusBadgeQH(auditado) {
     return auditado
-      ? '<span class="badge badge--true">Auditado</span>'
-      : '<span class="badge badge--null">Pendente</span>';
+      ? '<span class="badge badge--true">Analisado pelo Vigia</span>'
+      : '<span class="badge badge--null">Ainda não analisado</span>';
   }
 
-  function renderQHFormRow(a) {
-    var sid = escapeHtml(a.session_id || '');
-    var campos = CRITERIOS_QH.map(function (c) {
-      var valorAtual = a[c.id + '_score'];
-      var valor = (valorAtual === null || valorAtual === undefined) ? '' : valorAtual;
-      return '' +
-        '<label class="qh-form__campo">' + c.label + ' (0–100)' +
-          '<input type="number" min="0" max="100" step="1" class="qh-input-score" data-criterio="' + c.id + '" value="' + valor + '" />' +
-        '</label>';
-    }).join('');
-
-    return '' +
-      '<tr class="qh-form-row" id="qh-form-row-' + sid + '" hidden>' +
-        '<td colspan="6">' +
-          '<div class="qh-form" data-session-id="' + sid + '">' +
-            '<div class="qh-form__criterios">' + campos + '</div>' +
-            '<label class="qh-form__campo">Quem está auditando' +
-              '<input type="text" class="qh-input-auditor" placeholder="Seu nome" value="' + escapeHtml(a.auditor || '') + '" />' +
-            '</label>' +
-            '<label class="qh-form__campo qh-form__campo--full">Feedback / observação' +
-              '<textarea class="qh-input-feedback" rows="2" placeholder="Pontos fortes, pontos de atenção...">' + escapeHtml(a.feedback || '') + '</textarea>' +
-            '</label>' +
-            '<label class="qh-form__campo qh-form__campo--full">Necessidade de treinamento identificada' +
-              '<textarea class="qh-input-treinamento" rows="2" placeholder="Ex.: linguagem técnica demais, falta de estimativa de prazo...">' + escapeHtml(a.necessidade_treinamento || '') + '</textarea>' +
-            '</label>' +
-            '<div class="qh-form__acoes">' +
-              '<button type="button" class="btn btn--accent btn--small qh-salvar" data-session-id="' + sid + '">Salvar auditoria</button>' +
-              '<span class="qh-status" data-session-id="' + sid + '"></span>' +
-            '</div>' +
-          '</div>' +
-        '</td>' +
-      '</tr>';
+  function analiseQHHtml(a) {
+    if (!a.auditado) return '<span>Ainda não analisado pelo Vigia.</span>';
+    var subScores = '<span class="sub-score">Obj ' + fmtNumber(a.objetividade_score) +
+      ' · Simp ' + fmtNumber(a.simplicidade_score) +
+      ' · Vel ' + fmtNumber(a.velocidade_score) +
+      ' · Prev ' + fmtNumber(a.previsibilidade_score) + '</span>';
+    var detalhe = a.categoria_erro_humano
+      ? '<strong>' + escapeHtml(a.categoria_erro_humano) + '</strong>' +
+        (a.evidencia_erro_humano ? '<em>Evidência:</em> ' + escapeHtml(a.evidencia_erro_humano) + ' ' : '') +
+        (a.impacto_erro_humano ? '<em>Impacto:</em> ' + escapeHtml(a.impacto_erro_humano) + ' ' : '') +
+        (a.sugestao_melhoria_humano ? '<em>Sugestão:</em> ' + escapeHtml(a.sugestao_melhoria_humano) : '')
+      : (a.justificativa_humano
+          ? '<strong>' + escapeHtml(a.acao_recomendada_humano || 'Sem ação recomendada') + '</strong>' + escapeHtml(a.justificativa_humano)
+          : '<span>Sem observações do Vigia.</span>');
+    return subScores + '<br>' + detalhe;
   }
 
   function renderQHRow(a) {
@@ -511,19 +486,21 @@
       ? '<a class="cell-session__name cell-session__link" href="https://engeladvogados.bitrix24.com.br/online/?IM_DIALOG=chat' + encodeURIComponent(a.chat_id) + '" target="_blank" rel="noopener">' + nomeCliente + '</a>'
       : '<span class="cell-session__name cell-session__name--plain">' + nomeCliente + '</span>';
     var score = (a.score_efetividade_humano === null || a.score_efetividade_humano === undefined) ? '—' : a.score_efetividade_humano;
-    var botaoLabel = a.auditado ? 'Editar auditoria' : 'Auditar';
 
-    var linhaDados = '' +
+    return '' +
       '<tr>' +
         '<td class="cell-session">' + clienteHtml + '<br>' + sid + '</td>' +
         '<td>' + escapeHtml(a.colaborador_responsavel || 'Não informado') + '</td>' +
         '<td>' + fmtDateTime(a.iniciado_em) + '</td>' +
         '<td>' + statusBadgeQH(a.auditado) + '</td>' +
         '<td class="score-cell">' + score + '</td>' +
-        '<td><button type="button" class="btn btn--ghost btn--small qh-toggle" data-session-id="' + sid + '">' + botaoLabel + '</button></td>' +
+        '<td class="justificativa">' + analiseQHHtml(a) + '</td>' +
+        '<td class="observacao-cell">' +
+          '<textarea class="observacao-texto" data-session-id="' + sid + '" placeholder="Ponderação, observação ou feedback sobre este atendimento..." rows="2"></textarea>' +
+          '<button type="button" class="btn btn--ghost btn--small observacao-enviar" data-session-id="' + sid + '">Enviar para Mell</button>' +
+          '<span class="observacao-status" data-session-id="' + sid + '"></span>' +
+        '</td>' +
       '</tr>';
-
-    return linhaDados + renderQHFormRow(a);
   }
 
   function classificationFilterParamsQH() {
@@ -572,54 +549,6 @@
         el.hidden = false;
         el.textContent = 'Não foi possível carregar a auditoria humana agora (' + err.message + '). Tente novamente em instantes.';
         $('qh-tbody').innerHTML = '';
-      });
-  }
-
-  function salvarAuditoriaHumana(sessionId, formEl, statusEl, botao) {
-    var payload = { session_id: sessionId };
-    payload.auditor = (formEl.querySelector('.qh-input-auditor').value || '').trim();
-
-    CRITERIOS_QH.forEach(function (c) {
-      var input = formEl.querySelector('.qh-input-score[data-criterio="' + c.id + '"]');
-      var valor = (input.value || '').trim();
-      payload[c.id + '_score'] = valor === '' ? null : Number(valor);
-    });
-
-    payload.feedback = (formEl.querySelector('.qh-input-feedback').value || '').trim();
-    payload.necessidade_treinamento = (formEl.querySelector('.qh-input-treinamento').value || '').trim();
-
-    if (!payload.auditor) {
-      statusEl.textContent = 'Informe quem está auditando.';
-      statusEl.className = 'qh-status qh-status--erro';
-      return;
-    }
-
-    botao.disabled = true;
-    statusEl.textContent = 'Salvando...';
-    statusEl.className = 'qh-status';
-
-    fetch(QH_SALVAR_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-      .then(function (res) {
-        return res.json().then(function (body) {
-          if (!res.ok || body.erro) throw new Error(body.mensagem || ('HTTP ' + res.status));
-          return body;
-        });
-      })
-      .then(function () {
-        statusEl.textContent = 'Auditoria salva.';
-        statusEl.className = 'qh-status qh-status--ok';
-        loadQualidadeHumana();
-      })
-      .catch(function (err) {
-        statusEl.textContent = 'Não foi possível salvar (' + err.message + ').';
-        statusEl.className = 'qh-status qh-status--erro';
-      })
-      .finally(function () {
-        botao.disabled = false;
       });
   }
 
@@ -774,20 +703,13 @@
   // Eventos — aba Qualidade Humana
   // -----------------------------------------------------------------------
   $('qh-tbody').addEventListener('click', function (ev) {
-    var toggleBtn = ev.target.closest('.qh-toggle');
-    if (toggleBtn) {
-      var sid = toggleBtn.getAttribute('data-session-id');
-      var formRow = $('qh-form-row-' + sid);
-      if (formRow) formRow.hidden = !formRow.hidden;
-      return;
-    }
-    var salvarBtn = ev.target.closest('.qh-salvar');
-    if (salvarBtn) {
-      var sessionId = salvarBtn.getAttribute('data-session-id');
-      var formEl = salvarBtn.closest('.qh-form');
-      var statusEl = formEl.querySelector('.qh-status');
-      salvarAuditoriaHumana(sessionId, formEl, statusEl, salvarBtn);
-    }
+    var botao = ev.target.closest('.observacao-enviar');
+    if (!botao) return;
+    var sessionId = botao.getAttribute('data-session-id');
+    var td = botao.closest('.observacao-cell');
+    var textarea = td.querySelector('.observacao-texto');
+    var statusEl = td.querySelector('.observacao-status');
+    enviarObservacao(sessionId, textarea, statusEl, botao);
   });
 
   $('filtro-qh-status').addEventListener('change', function () {
