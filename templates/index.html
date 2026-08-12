@@ -280,7 +280,7 @@
 
     <section id="painel-qualidade-humana" class="panel" hidden role="tabpanel" aria-labelledby="tab-qualidade-humana">
       <p class="section-label" id="periodo-label-qh">Dados do período</p>
-      <p class="audit-filters__hint">Auditoria seletiva de atendimentos com participação de colaborador humano — registrada manualmente pela gestão. Não é gerada pelo Vigia.</p>
+      <p class="audit-filters__hint">Auditoria seletiva de atendimentos com participação de colaborador humano. As notas e a análise são geradas automaticamente pelo Vigia; a gestão (Laila) pode complementar com uma observação para a Mell, do mesmo jeito já usado na aba Auditoria.</p>
 
       <div class="audit-filters">
         <div class="audit-filters__grid">
@@ -288,8 +288,8 @@
             <label for="filtro-qh-status">Status</label>
             <select id="filtro-qh-status">
               <option value="">Todos</option>
-              <option value="pendente">Pendente</option>
-              <option value="auditado">Auditado</option>
+              <option value="pendente">Ainda não analisado</option>
+              <option value="auditado">Analisado pelo Vigia</option>
             </select>
           </div>
           <div class="field">
@@ -309,11 +309,12 @@
               <th>Iniciado em</th>
               <th>Status</th>
               <th>Score</th>
-              <th>Auditoria</th>
+              <th>Análise do Vigia</th>
+              <th>Observação (Laila → Mell)</th>
             </tr>
           </thead>
           <tbody id="qh-tbody">
-            <tr><td colspan="6" class="audit-table__loading">Carregando atendimentos…</td></tr>
+            <tr><td colspan="7" class="audit-table__loading">Carregando atendimentos…</td></tr>
           </tbody>
         </table>
       </div>
