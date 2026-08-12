@@ -89,6 +89,7 @@
   <nav class="tabs" role="tablist" aria-label="Seções do painel">
     <button class="tabs__opt is-active" id="tab-visao" role="tab" aria-selected="true" aria-controls="painel-visao">Visão geral</button>
     <button class="tabs__opt" id="tab-auditoria" role="tab" aria-selected="false" aria-controls="painel-auditoria">Auditoria</button>
+    <button class="tabs__opt" id="tab-qualidade-humana" role="tab" aria-selected="false" aria-controls="painel-qualidade-humana">Qualidade Humana</button>
   </nav>
 
   <main>
@@ -274,6 +275,56 @@
         <button class="btn btn--ghost" id="pag-anterior">← Anterior</button>
         <span id="pag-info">Página 1</span>
         <button class="btn btn--ghost" id="pag-proxima">Próxima →</button>
+      </div>
+    </section>
+
+    <section id="painel-qualidade-humana" class="panel" hidden role="tabpanel" aria-labelledby="tab-qualidade-humana">
+      <p class="section-label" id="periodo-label-qh">Dados do período</p>
+      <p class="audit-filters__hint">Auditoria seletiva de atendimentos com participação de colaborador humano — registrada manualmente pela gestão. Não é gerada pelo Vigia.</p>
+
+      <div class="audit-filters">
+        <div class="audit-filters__grid">
+          <div class="field">
+            <label for="filtro-qh-status">Status</label>
+            <select id="filtro-qh-status">
+              <option value="">Todos</option>
+              <option value="pendente">Pendente</option>
+              <option value="auditado">Auditado</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filtro-qh-colaborador">Colaborador</label>
+            <input type="text" id="filtro-qh-colaborador" placeholder="Nome do colaborador" />
+          </div>
+        </div>
+        <button class="btn btn--ghost" id="limpar-filtros-qh">Limpar filtros</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="audit-table" id="qh-table">
+          <thead>
+            <tr>
+              <th>Atendimento</th>
+              <th>Colaborador</th>
+              <th>Iniciado em</th>
+              <th>Status</th>
+              <th>Score</th>
+              <th>Auditoria</th>
+            </tr>
+          </thead>
+          <tbody id="qh-tbody">
+            <tr><td colspan="6" class="audit-table__loading">Carregando atendimentos…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="empty-state" id="qh-empty" hidden>Nenhum atendimento com participação humana nesse período.</p>
+      <p class="error-state" id="qh-error" hidden></p>
+
+      <div class="pagination" id="qh-pagination" hidden>
+        <button class="btn btn--ghost" id="qh-pag-anterior">← Anterior</button>
+        <span id="qh-pag-info">Página 1</span>
+        <button class="btn btn--ghost" id="qh-pag-proxima">Próxima →</button>
       </div>
     </section>
   </main>
