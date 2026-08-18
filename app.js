@@ -267,6 +267,7 @@
         $('m-sem-resposta').textContent = fmtNumber(data.sem_resposta_24h);
         $('m-transferido-sem-resposta').textContent = fmtNumber(data.transferidos_sem_resposta);
         $('m-sem-aceite').textContent = fmtNumber(data.colaborador_nao_aceitou);
+        $('m-sem-resposta-cliente').textContent = fmtNumber(data.sem_resposta_cliente_24h);
 
         var totalPeriodo = (data.atendimentos_concluidos || 0) + (data.atendimentos_criados || 0);
         renderBar('bar-concluidos', data.atendimentos_concluidos || 0, totalPeriodo);
@@ -407,6 +408,7 @@
       filtro_sem_resposta: selectedValues('filtro-sem-resposta').join(','),
       filtro_transferido_sem_resposta: selectedValues('filtro-transferido-sem-resposta').join(','),
       filtro_sem_aceite: selectedValues('filtro-sem-aceite').join(','),
+      filtro_sem_resposta_cliente: selectedValues('filtro-sem-resposta-cliente').join(','),
       filtro_falha_critica: selectedValues('filtro-falha-critica').join(',')
     };
   }
@@ -682,7 +684,7 @@
     state.page += 1; loadAuditoria();
   });
 
-  var FILTROS_AUDITORIA_IDS = ['filtro-canal', 'filtro-info', 'filtro-alucinacao', 'filtro-insatisfacao', 'filtro-golpe', 'filtro-transferencia', 'filtro-sem-resposta', 'filtro-transferido-sem-resposta', 'filtro-sem-aceite', 'filtro-falha-critica'];
+  var FILTROS_AUDITORIA_IDS = ['filtro-canal', 'filtro-info', 'filtro-alucinacao', 'filtro-insatisfacao', 'filtro-golpe', 'filtro-transferencia', 'filtro-sem-resposta', 'filtro-transferido-sem-resposta', 'filtro-sem-aceite', 'filtro-sem-resposta-cliente', 'filtro-falha-critica'];
 
   FILTROS_AUDITORIA_IDS.forEach(function (id) {
     $(id).addEventListener('change', function () {
