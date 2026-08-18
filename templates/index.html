@@ -157,6 +157,12 @@
             <span class="metric-card__value" id="m-sem-aceite">—</span>
             <span class="metric-card__hint">agora, sem filtro de período</span>
           </article>
+
+          <article class="metric-card">
+            <span class="metric-card__head"><i class="dot dot--warn"></i>Cliente sem responder há 24h</span>
+            <span class="metric-card__value" id="m-sem-resposta-cliente">—</span>
+            <span class="metric-card__hint">agora, sem filtro de período — Sofia/colaborador aguardando o cliente</span>
+          </article>
         </div>
 
         <div class="charts-grid">
@@ -227,6 +233,10 @@
           <div class="field">
             <label for="filtro-sem-aceite">Sem aceite</label>
             <select id="filtro-sem-aceite" multiple size="2"><option value="true">Não aceito</option><option value="false">Aceito</option></select>
+          </div>
+          <div class="field">
+            <label for="filtro-sem-resposta-cliente">Cliente sem responder</label>
+            <select id="filtro-sem-resposta-cliente" multiple size="2"><option value="true">Pendente</option><option value="false">Resolvido</option></select>
           </div>
           <div class="field">
             <label for="filtro-falha-critica">Falha crítica</label>
