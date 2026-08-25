@@ -75,6 +75,7 @@ const estado = {
   secao: 'visao',
   colaborador: null,
   status: 'todos',
+  avaliado: 'sim', // 'sim' | 'nao' | 'todos' - só afeta a aba Atendimentos
   baseData: 'criacao',
   periodos: [],
   periodoRotulo: 'Hoje',
@@ -569,6 +570,17 @@ function pintarQualidade(dados) {
 // =============================================================================
 // Atendimentos (auditoria)
 // =============================================================================
+const LARGURAS_COLUNA = {
+  'Cliente': 16, 'Responsável': 10, 'Tipo': 8, 'Criado em': 9, 'Concluído em': 9,
+  'Status': 8, 'Score': 6, 'Avaliação do Vigia': 28, 'Sinais': 6, 'Feedbacks (Laila)': 10
+};
+
+function pintarColgroup() {
+  $('tabela-colgroup').innerHTML = colunas()
+    .map((nome) => `<col style="width:${LARGURAS_COLUNA[nome] || 10}%">`)
+    .join('');
+}
+
 function colunas() {
   const base = ['Cliente', 'Responsável'];
   if (estado.departamento === 'sucesso_cliente') base.push('Tipo');
@@ -589,6 +601,7 @@ function pintarChipsAuditoria(contadores) {
 
 function skeletonTabela() {
   const total = colunas().length;
+  pintarColgroup();
   $('tabela-cabecalho').innerHTML = '<tr>' + colunas().map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
   let html = '';
   for (let i = 0; i < 6; i++) {
@@ -640,6 +653,7 @@ function celulaFeedback(item) {
 function renderizarTabela(dados) {
   pintarChipsAuditoria(dados.contadores);
   const cols = colunas();
+  pintarColgroup();
   $('tabela-cabecalho').innerHTML = '<tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
   $('tabela-meta').textContent = num(dados.total) ? nf.format(num(dados.total)) + ' no filtro atual' : '';
 
@@ -706,6 +720,7 @@ function parametrosFiltro() {
     agente: estado.agente,
     periodos: JSON.stringify(estado.periodos),
     status: estado.status,
+    avaliado: estado.avaliado,
     base_data: estado.baseData,
     scope_token: (estado.permissoes && estado.permissoes.scope_token) || '',
     ...(estado.colaborador ? { colaborador: estado.colaborador } : {})
@@ -1198,6 +1213,10 @@ function ligarNavegacao() {
     estado.status = e.target.value;
     recarregarPorFiltro();
   });
+  $('filtro-avaliado').addEventListener('change', (e) => {
+    estado.avaliado = e.target.value;
+    recarregarPorFiltro();
+  });
   $('filtro-base-data').addEventListener('change', (e) => {
     estado.baseData = e.target.value;
     pintarFiltrosDoDepartamento();
@@ -1215,6 +1234,7 @@ function ligarNavegacao() {
     const qual = alvo.dataset.limpar;
     if (qual === 'colaborador' || qual === 'tudo') { estado.colaborador = null; $('filtro-colaborador').value = 'todos'; }
     if (qual === 'status' || qual === 'tudo') { estado.status = 'todos'; $('filtro-status').value = 'todos'; }
+    if (qual === 'avaliado' || qual === 'tudo') { estado.avaliado = 'sim'; $('filtro-avaliado').value = 'sim'; }
     if (qual === 'base-data' || qual === 'tudo') {
       estado.baseData = estado.departamento === 'sucesso_cliente' ? 'conclusao' : 'criacao';
       $('filtro-base-data').value = estado.baseData;
