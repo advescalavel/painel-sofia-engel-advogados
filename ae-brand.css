@@ -1,0 +1,418 @@
+/* =========================================================================
+   ae-brand.css — Camada de marca Advocacia Escalável para apps Bitrix24
+   Versão 1.0
+
+   Como usar:
+   1. Copie este arquivo para a raiz do app (ao lado de styles.css).
+   2. No <head>, ANTES do CSS do app:
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Geologica:wght@100..900&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="ae-brand.css">
+   3. No <html>: <html lang="pt-BR" data-tema="claro">
+   4. Se o app já tem tokens próprios, use o bloco PONTE lá no fim do arquivo.
+
+   Todos os tokens são prefixados --ae- para nunca colidir com o CSS do app
+   nem com a UI nativa do Bitrix24.
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   1. MARCA — valores fixos, idênticos nos dois temas.
+   Nunca redefina estes quatro. São a marca, não a interface.
+   ------------------------------------------------------------------------- */
+:root {
+  --ae-purple-blue: #2B2B6E;  /* primária do manual */
+  --ae-magic-pink:  #FF038F;  /* primária do manual */
+  --ae-gradiente:   linear-gradient(90deg, #2B2B6E 0%, #FF038F 100%);
+  --ae-gradiente-diagonal: linear-gradient(135deg, #2B2B6E 0%, #FF038F 100%);
+
+  /* Complementares do manual, na nomenclatura original */
+  --ae-r1: #2E294F;  --ae-r2: #534C8C;  --ae-r3: #8A83CC;  --ae-r4: #C9C4F5;
+  --ae-l1: #FA8C24;  --ae-l2: #FAA65C;  --ae-l3: #FCC69A;  --ae-l4: #FFE4CF;
+  --ae-v1: #E0FF03;  --ae-v2: #ECFC56;  --ae-v3: #F1FA93;  --ae-v4: #FBFFC9;
+  --ae-a1: #FFD400;  --ae-a2: #FCDD51;  --ae-a3: #FFEB99;  --ae-a4: #FCF3CC;
+
+  /* Tipografia */
+  --ae-font: "Geologica", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  --ae-font-num: "Geologica", "SFMono-Regular", "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Raios e sombras */
+  --ae-radius-lg: 16px;
+  --ae-radius:    10px;
+  --ae-radius-sm: 8px;
+  --ae-radius-pill: 999px;
+
+  /* Escala de espaçamento (múltiplos de 4) */
+  --ae-s1: 4px; --ae-s2: 8px; --ae-s3: 12px; --ae-s4: 16px;
+  --ae-s5: 20px; --ae-s6: 24px; --ae-s8: 32px; --ae-s10: 40px;
+}
+
+/* -------------------------------------------------------------------------
+   2. TEMA CLARO — padrão para apps embutidos no Bitrix24.
+   O portal é claro; um app escuro por padrão briga com a moldura.
+   Contrastes conferidos (WCAG 2.1) anotados em cada linha.
+   ------------------------------------------------------------------------- */
+:root,
+[data-tema="claro"] {
+  --ae-bg:            #F6F5FA;
+  --ae-surface:       #FFFFFF;
+  --ae-surface-2:     #EFEDF6;
+  --ae-surface-3:     #E7E4F2;
+  --ae-border:        #E1DEEE;
+  --ae-border-strong: #C9C4F5;
+
+  --ae-text:       #2E294F;   /* 12.5:1 sobre --ae-bg   — corpo e títulos   */
+  --ae-text-soft:  #5B5878;   /*  6.2:1 — apoio, legendas, metadados        */
+  --ae-text-faint: #6B6885;   /*  4.9:1 — rótulos micro; nada menor que 11px */
+  --ae-text-onbrand: #FFFFFF; /* 11.6:1 sobre Purple Blue                    */
+
+  --ae-brand:      #2B2B6E;   /* 11.6:1 — títulos de marca, ícones          */
+  --ae-pink:       #FF038F;   /* decorativo: fills, bordas, barras, gráfico */
+  --ae-pink-ink:   #C70070;   /*  5.3:1 — pink QUANDO É TEXTO ou ícone      */
+  --ae-pink-soft:  #FFE6F3;
+  --ae-pink-line:  rgba(255, 3, 143, 0.28);
+
+  --ae-action:       #C70070; /* fundo de botão primário, 5.7:1 c/ branco   */
+  --ae-action-hover: #A80260; /* 7.4:1                                       */
+  --ae-action-ink:   #FFFFFF;
+
+  --ae-success: #147A5C;  --ae-success-soft: #E3F4EE;
+  --ae-warn:    #8B5A00;  --ae-warn-soft:    #FCF1DC;
+  --ae-danger:  #B23A20;  --ae-danger-soft:  #FBEAE5;
+  --ae-info:    #534C8C;  --ae-info-soft:    #ECEAF8;
+
+  --ae-marca-texto-bg: #E0FF03;  /* marca-texto: V1 com texto --ae-text, 11.9:1 */
+
+  --ae-shadow-1: 0 1px 2px rgba(43, 43, 110, 0.06), 0 1px 3px rgba(43, 43, 110, 0.05);
+  --ae-shadow-2: 0 4px 16px rgba(43, 43, 110, 0.10);
+  --ae-shadow-pop: 0 12px 32px rgba(43, 43, 110, 0.16);
+
+  --ae-logo-ink: #2B2B6E;   /* cor do lettering do logo → versão semipositiva */
+  --ae-watermark-opacity: 0.06;
+
+  color-scheme: light;
+}
+
+/* -------------------------------------------------------------------------
+   3. TEMA ESCURO — opcional, sempre por escolha explícita do usuário.
+   Base construída sobre o R1 (#2E294F) do manual.
+   ------------------------------------------------------------------------- */
+[data-tema="escuro"] {
+  --ae-bg:            #171428;
+  --ae-surface:       #211E39;
+  --ae-surface-2:     #2E294F;
+  --ae-surface-3:     #3A3460;
+  --ae-border:        #3D3862;
+  --ae-border-strong: #534C8C;
+
+  --ae-text:       #F3F1F8;   /* 14.3:1 sobre --ae-surface */
+  --ae-text-soft:  #B7B4C8;   /*  7.9:1 */
+  --ae-text-faint: #9895B0;   /*  5.6:1 */
+  --ae-text-onbrand: #FFFFFF;
+
+  --ae-brand:      #C9C4F5;   /* Purple Blue não sobrevive no escuro → R4, 9.7:1 */
+  --ae-pink:       #FF038F;
+  --ae-pink-ink:   #FF69B8;   /*  6.1:1 */
+  --ae-pink-soft:  rgba(255, 3, 143, 0.18);
+  --ae-pink-line:  rgba(255, 3, 143, 0.45);
+
+  --ae-action:       #FF69B8;
+  --ae-action-hover: #FF8CC8;
+  --ae-action-ink:   #1A1730;  /* 6.6:1 */
+
+  --ae-success: #4FD69A;  --ae-success-soft: rgba(79, 214, 154, 0.16);
+  --ae-warn:    #F0A94E;  --ae-warn-soft:    rgba(240, 169, 78, 0.16);
+  --ae-danger:  #FF7B85;  --ae-danger-soft:  rgba(255, 123, 133, 0.16);
+  --ae-info:    #C9C4F5;  --ae-info-soft:    rgba(201, 196, 245, 0.14);
+
+  --ae-marca-texto-bg: #E0FF03;
+
+  --ae-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --ae-shadow-2: 0 4px 16px rgba(0, 0, 0, 0.40);
+  --ae-shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.50);
+
+  --ae-logo-ink: #FFFFFF;   /* lettering branco → versão seminegativa */
+  --ae-watermark-opacity: 0.10;
+
+  color-scheme: dark;
+}
+
+/* -------------------------------------------------------------------------
+   4. SÉRIES DE GRÁFICO — ordem fixa. Use sempre nesta sequência para que
+   dashboards diferentes do mesmo cliente fiquem comparáveis entre si.
+   ------------------------------------------------------------------------- */
+:root, [data-tema="claro"] {
+  --ae-serie-1: #FF038F;  --ae-serie-2: #534C8C;  --ae-serie-3: #FA8C24;
+  --ae-serie-4: #2B2B6E;  --ae-serie-5: #8A83CC;  --ae-serie-6: #FFD400;
+  --ae-serie-7: #C70070;  --ae-serie-8: #C9C4F5;
+}
+[data-tema="escuro"] {
+  --ae-serie-1: #FF69B8;  --ae-serie-2: #8A83CC;  --ae-serie-3: #FA8C24;
+  --ae-serie-4: #C9C4F5;  --ae-serie-5: #FF038F;  --ae-serie-6: #FFD400;
+  --ae-serie-7: #E0FF03;  --ae-serie-8: #534C8C;
+}
+
+/* -------------------------------------------------------------------------
+   5. TIPOGRAFIA
+   O manual pede Thin no corpo de texto — isso vale para impresso e peças
+   grandes. Em tela, abaixo de 16px o Thin some. A transposição oficial para
+   interface é: corpo 400, destaque 500, subtítulo 600/700, título 800/900.
+   ------------------------------------------------------------------------- */
+.ae-app,
+.ae-scope {
+  font-family: var(--ae-font);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ae-text);
+  background: var(--ae-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.ae-titulo-app {
+  font-size: 23px; font-weight: 900; line-height: 1.15;
+  letter-spacing: -0.022em; color: var(--ae-text); margin: 0;
+}
+.ae-titulo-secao {
+  font-size: 18px; font-weight: 800; line-height: 1.25;
+  letter-spacing: -0.015em; color: var(--ae-text); margin: 0;
+}
+.ae-subtitulo {
+  font-size: 15px; font-weight: 600; letter-spacing: -0.005em;
+  color: var(--ae-text); margin: 0;
+}
+.ae-corpo   { font-size: 14px; font-weight: 400; }
+.ae-apoio   { font-size: 13px; font-weight: 400; color: var(--ae-text-soft); }
+.ae-destaque{ font-weight: 500; color: var(--ae-text); }
+.ae-rotulo {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--ae-text-faint);
+}
+.ae-numero {
+  font-family: var(--ae-font-num); font-weight: 800;
+  font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+}
+.ae-kpi { font-size: 32px; line-height: 1.05; }
+
+/* Números em tabela: sempre tabulares, senão as colunas dançam. */
+.ae-app table td, .ae-app table th { font-variant-numeric: tabular-nums; }
+
+.ae-marca-texto {
+  background: var(--ae-marca-texto-bg);
+  color: #2E294F; font-weight: 600;
+  padding: 0 4px; border-radius: 3px;
+  box-decoration-break: clone;
+}
+
+/* -------------------------------------------------------------------------
+   6. LOGO
+   ------------------------------------------------------------------------- */
+.ae-logo {
+  display: inline-flex; align-items: center;
+  color: var(--ae-logo-ink);           /* o lettering usa currentColor */
+  flex-shrink: 0;
+}
+.ae-logo svg { display: block; height: 100%; width: auto; }
+
+/* Imagotipo (símbolo + lettering). Mínimo do manual: 130px de largura,
+   o que equivale a ~15px de altura. Abaixo disso, troque pelo isotipo. */
+.ae-logo--completo { height: 24px; min-width: 130px; }
+.ae-logo--completo svg { height: 24px; }
+
+/* Isotipo (só o símbolo). Use em cabeçalhos estreitos e avatares. */
+.ae-logo--isotipo { height: 24px; }
+.ae-logo--isotipo svg { height: 24px; }
+
+/* Área de respiro: o manual define a margem pela largura do próprio símbolo.
+   Na prática, em interface: padding lateral ≥ 1× a altura do logo. */
+.ae-logo-wrap { display: inline-flex; align-items: center; padding: 0 24px 0 0; }
+
+/* Nome de produto ao lado do símbolo, na cor R2 — regra "LOGO / PRODUTOS". */
+.ae-produto {
+  display: inline-flex; align-items: center; gap: 12px;
+}
+.ae-produto__sep {
+  width: 1px; align-self: stretch; min-height: 22px;
+  background: var(--ae-border-strong);
+}
+.ae-produto__nome {
+  font-size: 15px; font-weight: 400; letter-spacing: 0.01em;
+  color: var(--ae-r2); white-space: nowrap;
+}
+[data-tema="escuro"] .ae-produto__nome { color: var(--ae-r4); }
+.ae-produto__nome b { font-weight: 800; }
+
+/* Ícone do app / favicon: isotipo branco sobre o gradiente. */
+.ae-appicon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--ae-gradiente-diagonal); color: #FFFFFF;
+}
+.ae-appicon svg { width: 56%; height: auto; }
+
+/* Marca d'água: símbolo ampliado, opacidade máxima 20% (manual, pág. 15). */
+.ae-watermark {
+  position: absolute; inset: auto -6% -18% auto;
+  width: 300px; pointer-events: none; user-select: none;
+  color: var(--ae-brand); opacity: var(--ae-watermark-opacity);
+}
+
+/* -------------------------------------------------------------------------
+   7. COMPONENTES BASE
+   ------------------------------------------------------------------------- */
+.ae-card {
+  background: var(--ae-surface);
+  border: 1px solid var(--ae-border);
+  border-radius: var(--ae-radius-lg);
+  padding: 20px;
+  box-shadow: var(--ae-shadow-1);
+}
+.ae-card--destaque { border-color: var(--ae-pink-line); }
+
+/* Fita de marca no topo de um card ou do app inteiro. */
+.ae-fita { height: 3px; background: var(--ae-gradiente); border-radius: 3px 3px 0 0; }
+
+.ae-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font-family: inherit; font-size: 13.5px; font-weight: 700;
+  min-height: 36px; padding: 8px 16px;
+  border-radius: var(--ae-radius-sm);
+  border: 1px solid var(--ae-border);
+  background: var(--ae-surface); color: var(--ae-text);
+  cursor: pointer; white-space: nowrap;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.ae-btn:hover { border-color: var(--ae-pink); }
+.ae-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.ae-btn--primario {
+  background: var(--ae-action); border-color: var(--ae-action);
+  color: var(--ae-action-ink);
+}
+.ae-btn--primario:hover { background: var(--ae-action-hover); border-color: var(--ae-action-hover); }
+
+.ae-btn--fantasma { background: transparent; }
+
+/* Botão Magic Pink puro: só com rótulo ≥ 19px/700, senão o contraste
+   branco-sobre-#FF038F (3.7:1) reprova em AA. Use com parcimônia, em CTA
+   isolado de tela cheia (instalação, boas-vindas). */
+.ae-btn--pink {
+  background: var(--ae-magic-pink); border-color: var(--ae-magic-pink);
+  color: #FFFFFF; font-size: 19px; font-weight: 700; min-height: 48px; padding: 12px 28px;
+}
+
+.ae-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600;
+  padding: 6px 14px; border-radius: var(--ae-radius-pill);
+  border: 1px solid var(--ae-border);
+  background: var(--ae-surface); color: var(--ae-text-soft);
+  cursor: pointer;
+}
+.ae-chip:hover { color: var(--ae-text); border-color: var(--ae-border-strong); }
+.ae-chip.is-ativo {
+  background: var(--ae-purple-blue); border-color: var(--ae-purple-blue);
+  color: #FFFFFF;
+}
+[data-tema="escuro"] .ae-chip.is-ativo {
+  background: var(--ae-r4); border-color: var(--ae-r4); color: #1A1730;
+}
+
+.ae-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+  padding: 3px 9px; border-radius: var(--ae-radius-pill);
+  background: var(--ae-pink-soft); color: var(--ae-pink-ink);
+}
+.ae-badge--ok    { background: var(--ae-success-soft); color: var(--ae-success); }
+.ae-badge--alerta{ background: var(--ae-warn-soft);    color: var(--ae-warn); }
+.ae-badge--erro  { background: var(--ae-danger-soft);  color: var(--ae-danger); }
+.ae-badge--info  { background: var(--ae-info-soft);    color: var(--ae-info); }
+
+.ae-abas { display: flex; gap: 24px; border-bottom: 1px solid var(--ae-border); }
+.ae-abas__item {
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 10px 2px; font-family: inherit; font-size: 14px; font-weight: 600;
+  color: var(--ae-text-soft); cursor: pointer;
+}
+.ae-abas__item.is-ativo { color: var(--ae-text); border-bottom-color: var(--ae-magic-pink); }
+
+.ae-tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ae-tabela th {
+  text-align: left; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--ae-text-faint);
+  padding: 10px 12px; border-bottom: 1px solid var(--ae-border);
+  background: var(--ae-surface-2);
+  position: sticky; top: 0; z-index: 1;
+}
+.ae-tabela td { padding: 12px; border-bottom: 1px solid var(--ae-border); vertical-align: top; }
+.ae-tabela tbody tr:hover { background: var(--ae-surface-2); }
+
+.ae-vazio {
+  position: relative; overflow: hidden;
+  padding: 48px 24px; text-align: center;
+  color: var(--ae-text-soft);
+  border: 1px dashed var(--ae-border-strong);
+  border-radius: var(--ae-radius-lg);
+}
+
+/* Foco visível: exigência de acessibilidade e assinatura da marca. */
+.ae-app :focus-visible,
+.ae-scope :focus-visible {
+  outline: 2px solid var(--ae-magic-pink);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Skeleton de carregamento com o roxo da marca. */
+.ae-skeleton {
+  background: linear-gradient(90deg, var(--ae-surface-2) 25%, var(--ae-surface-3) 50%, var(--ae-surface-2) 75%);
+  background-size: 200% 100%;
+  animation: ae-shimmer 1.4s linear infinite;
+  border-radius: var(--ae-radius-sm);
+}
+@keyframes ae-shimmer { to { background-position: -200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ae-skeleton { animation: none; }
+  * { transition-duration: .001ms !important; animation-duration: .001ms !important; }
+}
+
+/* -------------------------------------------------------------------------
+   8. PONTE — para apps que já têm um sistema de tokens próprio.
+
+   Não descomente aqui. Copie este bloco para um arquivo separado,
+   `ae-ponte.css`, e carregue-o DEPOIS do CSS do app:
+
+       <link rel="stylesheet" href="ae-brand.css">   <- antes
+       <link rel="stylesheet" href="styles.css">
+       <link rel="stylesheet" href="ae-ponte.css">   <- depois
+
+   A ordem importa: o app define os tokens dele no próprio :root, e só um
+   arquivo carregado depois consegue sobrescrevê-los. Como custom property
+   resolve na hora do uso, um único bloco :root já acompanha a troca de tema.
+   O script `scripts/marca.py aplicar` gera esse arquivo com os nomes que
+   realmente existem no app.
+   ------------------------------------------------------------------------- */
+/*
+:root {
+  --bg:             var(--ae-bg);
+  --surface:        var(--ae-surface);
+  --surface-raised: var(--ae-surface-2);
+  --border:         var(--ae-border);
+  --text:           var(--ae-text);
+  --text-soft:      var(--ae-text-soft);
+  --text-faint:     var(--ae-text-faint);
+  --brand-primary:  var(--ae-brand);
+  --accent:         var(--ae-pink);
+  --accent-dim:     var(--ae-action-hover);
+  --accent-soft:    var(--ae-pink-soft);
+  --success:        var(--ae-success);
+  --warn:           var(--ae-warn);
+  --danger:         var(--ae-danger);
+  --purple:         var(--ae-info);
+  --font-display:   var(--ae-font);
+  --font-body:      var(--ae-font);
+  --font-mono:      var(--ae-font-num);
+}
+*/
