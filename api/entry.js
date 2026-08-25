@@ -6,7 +6,7 @@ import path from 'path';
 // branco. Esta função aceita qualquer método e serve o mesmo HTML.
 export default function handler(req, res) {
   try {
-    const html = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf-8');
+    const html = fs.readFileSync(path.join(process.cwd(), 'templates', 'index.html'), 'utf-8');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.status(200).send(html);
   } catch (err) {
