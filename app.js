@@ -1136,7 +1136,7 @@ function selecionarDepartamento(departamento) {
   estado.agente = DEPARTAMENTOS[departamento].agentes[0].id;
   estado.status = 'todos';
   estado.colaborador = null;
-  estado.baseData = 'criacao';
+  estado.baseData = departamento === 'sucesso_cliente' ? 'conclusao' : 'criacao';
   Object.keys(estado.sinais).forEach(k => { estado.sinais[k] = false; });
   estado.dados = null;
   estado.pagina = 1;
@@ -1215,7 +1215,10 @@ function ligarNavegacao() {
     const qual = alvo.dataset.limpar;
     if (qual === 'colaborador' || qual === 'tudo') { estado.colaborador = null; $('filtro-colaborador').value = 'todos'; }
     if (qual === 'status' || qual === 'tudo') { estado.status = 'todos'; $('filtro-status').value = 'todos'; }
-    if (qual === 'base-data' || qual === 'tudo') { estado.baseData = 'criacao'; $('filtro-base-data').value = 'criacao'; }
+    if (qual === 'base-data' || qual === 'tudo') {
+      estado.baseData = estado.departamento === 'sucesso_cliente' ? 'conclusao' : 'criacao';
+      $('filtro-base-data').value = estado.baseData;
+    }
     if (qual === 'periodo' || qual === 'tudo') aplicarPreset('hoje', true);
     if (qual === 'tudo') Object.keys(estado.sinais).forEach(k => { estado.sinais[k] = false; });
     if (qual.indexOf('sinal:') === 0) estado.sinais[qual.split(':')[1]] = false;
