@@ -4,7 +4,7 @@
   ],
   "functions": {
     "api/entry.js": {
-      "includeFiles": "templates/index.html"
+      "includeFiles": "index.html"
     }
   }
 }
