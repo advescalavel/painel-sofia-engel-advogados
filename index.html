@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="pt-BR" data-tema="claro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Vigia — Engel Advogados</title>
+
+<script>
+  try {
+    var t = localStorage.getItem('ae-tema:painel-vigia-engel');
+    if (t) document.documentElement.setAttribute('data-tema', t);
+  } catch (e) {}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geologica:wght@100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ae-brand.css">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+</head>
+<body>
+<div class="vg-fita"></div>
+<div class="ae-app" id="app" hidden>
+
+  <header class="vg-topo">
+    <div class="vg-topo__marca">
+      <span class="ae-logo ae-logo--completo vg-so-largo" aria-label="Advocacia Escalável" id="logo-completo"></span>
+      <span class="ae-logo ae-logo--isotipo vg-so-compacto" aria-label="Advocacia Escalável" id="logo-isotipo"></span>
+      <span class="ae-produto__sep" aria-hidden="true"></span>
+      <span class="ae-produto__nome">PAINEL <b>VIGIA</b><span class="vg-cliente-nome">Engel Advogados</span></span>
+    </div>
+
+    <div class="vg-seg" role="group" aria-label="Departamento" id="seg-departamento"></div>
+
+    <div class="vg-topo__acoes">
+      <span class="vg-atualizado" id="atualizado" aria-live="polite"></span>
+      <button class="ae-btn vg-btn-icone" id="btn-atualizar" type="button" aria-label="Atualizar dados">
+        <span class="vg-gira" aria-hidden="true">↻</span><span class="vg-rotulo-btn">Atualizar</span>
+      </button>
+      <button class="ae-btn vg-btn-icone" id="btn-tema" type="button" aria-label="Alternar tema claro/escuro">
+        <span aria-hidden="true">◐</span><span class="vg-rotulo-btn">Tema</span>
+      </button>
+      <a class="ae-btn vg-btn-icone" id="btn-suporte" href="#" target="_blank" rel="noopener">
+        <span aria-hidden="true">☏</span><span class="vg-rotulo-btn">Suporte</span>
+      </a>
+    </div>
+  </header>
+
+  <p class="vg-demo" id="aviso-demo" hidden>
+    <span aria-hidden="true">◍</span>
+    <span id="aviso-demo-texto">Dados de demonstração — o painel não conseguiu falar com a API do Vigia. Nenhum número aqui é dado real da operação.</span>
+  </p>
+
+  <div class="vg-barra">
+    <div class="vg-agentes" id="seg-agente" role="group" aria-label="IA supervisora"></div>
+
+    <div class="vg-abas" role="tablist" aria-label="Seção do painel">
+      <button class="vg-abas__item is-ativo" data-secao="visao" role="tab" aria-selected="true" type="button">Visão geral</button>
+      <button class="vg-abas__item" data-secao="qualidade" role="tab" aria-selected="false" type="button">Qualidade da IA</button>
+      <button class="vg-abas__item" data-secao="auditoria" role="tab" aria-selected="false" type="button">Atendimentos</button>
+    </div>
+
+    <div class="vg-filtros">
+      <div class="vg-filtro" id="filtro-periodo-wrap">
+        <button class="vg-campo" id="btn-periodo" type="button" aria-haspopup="dialog" aria-expanded="false">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          <span class="vg-campo__valor" id="periodo-rotulo">Hoje</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+
+        <div class="vg-popover" id="periodo-popup" hidden role="dialog" aria-label="Selecionar período">
+          <div class="vg-popover__col">
+            <p class="ae-rotulo">Atalhos</p>
+            <button class="vg-opcao is-ativo" data-preset="hoje" type="button">Hoje</button>
+            <button class="vg-opcao" data-preset="semana-atual" type="button">Semana atual</button>
+            <button class="vg-opcao" data-preset="semana-anterior" type="button">Semana anterior</button>
+            <button class="vg-opcao" data-preset="mes-atual" type="button">Mês atual</button>
+            <button class="vg-opcao" data-preset="mes-anterior" type="button">Mês anterior</button>
+            <button class="vg-opcao" data-preset="trimestre-atual" type="button">Trimestre atual</button>
+            <button class="vg-opcao" data-preset="semestre-atual" type="button">Semestre atual</button>
+            <button class="vg-opcao" data-preset="ano-atual" type="button">Ano atual</button>
+          </div>
+          <div class="vg-popover__col">
+            <p class="ae-rotulo">Conjunto de meses</p>
+            <div class="vg-lista" id="lista-meses"></div>
+            <p class="ae-rotulo">Conjunto de semanas</p>
+            <div class="vg-lista" id="lista-semanas"></div>
+          </div>
+          <div class="vg-popover__col">
+            <p class="ae-rotulo">Conjunto de anos</p>
+            <div class="vg-lista" id="lista-anos"></div>
+            <p class="ae-rotulo">Dia ou intervalo</p>
+            <input type="date" id="periodo-custom-desde" class="vg-campo vg-data" title="Preencha só este campo para selecionar um único dia">
+            <input type="date" id="periodo-custom-ate" class="vg-campo vg-data" title="Opcional — preencha só se quiser um intervalo">
+            <p class="vg-card__apoio">Só o primeiro campo = um único dia.</p>
+          </div>
+          <div class="vg-popover__rodape">
+            <span class="vg-card__apoio" id="periodo-contagem">Nenhum conjunto marcado</span>
+            <span class="vg-acoes">
+              <button class="ae-btn" id="btn-periodo-limpar" type="button">Limpar seleção</button>
+              <button class="ae-btn" id="btn-periodo-cancelar" type="button">Cancelar</button>
+              <button class="ae-btn ae-btn--primario" id="btn-periodo-aplicar" type="button">Aplicar</button>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <select id="filtro-base-data" class="vg-campo vg-campo--sel" aria-label="Base da data do período" hidden>
+        <option value="criacao">Período por data de criação</option>
+        <option value="conclusao">Período por data de conclusão</option>
+      </select>
+      <select id="filtro-colaborador" class="vg-campo vg-campo--sel" aria-label="Filtrar por colaborador ou IA"></select>
+      <select id="filtro-status" class="vg-campo vg-campo--sel" aria-label="Filtrar por status"></select>
+
+      <div class="vg-filtros__resumo" id="filtros-resumo"></div>
+    </div>
+  </div>
+
+  <main>
+    <section id="secao-visao" role="tabpanel" aria-label="Visão geral">
+      <div class="vg-kpis" id="kpis-visao"></div>
+      <div class="vg-graficos" id="graficos-visao"></div>
+    </section>
+
+    <section id="secao-qualidade" role="tabpanel" aria-label="Qualidade da IA" hidden>
+      <div class="vg-kpis" id="kpis-qualidade"></div>
+      <div class="vg-graficos" id="graficos-qualidade"></div>
+    </section>
+
+    <section id="secao-auditoria" role="tabpanel" aria-label="Atendimentos" hidden>
+      <div class="vg-tabela-card">
+        <div class="vg-tabela-topo">
+          <h2 class="vg-tabela-topo__titulo">Atendimentos avaliados</h2>
+          <span class="vg-tabela-topo__meta" id="tabela-meta"></span>
+          <div class="vg-tabela-topo__dir">
+            <label class="vg-card__apoio" for="filtro-limite">Por página</label>
+            <select id="filtro-limite" class="vg-campo vg-campo--sel" aria-label="Atendimentos por página">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
+        <div class="vg-sinais-filtro" id="chips-auditoria" role="group" aria-label="Filtros de auditoria"></div>
+        <div class="vg-tabela-wrap" id="tabela-wrap">
+          <table class="vg-tabela">
+            <thead id="tabela-cabecalho"></thead>
+            <tbody id="tabela-corpo"></tbody>
+          </table>
+        </div>
+        <div class="vg-paginacao" id="paginacao"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="vg-rodape">
+    <span class="ae-apoio">Desenvolvido por</span>
+    <span class="ae-logo ae-logo--completo" aria-label="Advocacia Escalável" id="logo-rodape"></span>
+  </footer>
+
+</div>
+
+<div class="ae-app vg-sem-acesso" id="sem-acesso" hidden>
+  <div class="vg-card vg-sem-acesso__card">
+    <span class="ae-appicon" id="logo-appicon" aria-hidden="true"></span>
+    <h2 class="ae-titulo-secao">Sem permissão de acesso</h2>
+    <p class="ae-apoio">Seu usuário do Bitrix24 não está vinculado a nenhum departamento habilitado no Painel Vigia.</p>
+    <p class="ae-apoio">Fale com a gestão da Engel Advogados para liberar Comercial ou Sucesso do Cliente.</p>
+    <a class="ae-btn ae-btn--primario" id="btn-suporte-negado" href="#" target="_blank" rel="noopener">Contatar o suporte</a>
+  </div>
+</div>
+
+<div class="vg-drawer-fundo" id="drawer-fundo" hidden>
+  <aside class="vg-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-titulo">
+    <div class="vg-drawer__topo">
+      <div>
+        <h2 class="vg-card__titulo" id="drawer-titulo">Feedbacks do atendimento</h2>
+        <p class="vg-card__apoio" id="drawer-meta">Histórico completo — uma nova mensagem nunca substitui as anteriores.</p>
+      </div>
+      <button class="ae-btn" id="drawer-fechar" type="button" aria-label="Fechar">✕</button>
+    </div>
+    <div class="vg-drawer__corpo" id="drawer-corpo"></div>
+    <div class="vg-drawer__rodape">
+      <label class="ae-rotulo" for="drawer-texto">Nova mensagem de feedback</label>
+      <textarea class="vg-textarea" id="drawer-texto" placeholder="Ponderação, observação ou feedback sobre este atendimento…"></textarea>
+      <span class="vg-status" id="drawer-status"></span>
+      <div class="vg-drawer__acoes">
+        <button class="ae-btn" id="drawer-cancelar" type="button">Fechar</button>
+        <button class="ae-btn ae-btn--primario" id="drawer-enviar" type="button">Enviar feedback</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="vg-tip" id="vg-tip" hidden></div>
+<div class="vg-toast" id="vg-toast" role="status" hidden></div>
+
+<script src="//api.bitrix24.com/api/v1/"></script>
+<script src="demo-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
