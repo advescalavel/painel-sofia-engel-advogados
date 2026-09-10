@@ -545,6 +545,14 @@ function pintarVisaoFechamento(dados) {
 
 function pintarVisaoSucesso(dados) {
   const k = dados.kpis || {};
+
+  // CORREÇÃO: Recalcula o total de falhas da IA desconsiderando o motivo "Nenhuma"
+  let totalFalhasIa = num(k.falhas_ia);
+  if (Array.isArray(dados.falha_critica)) {
+    const falhasReais = dados.falha_critica.filter(f => !semFalhaCritica(f.motivo));
+    totalFalhasIa = falhasReais.reduce((acc, f) => acc + num(f.quantidade), 0);
+  }
+
   $('kpis-visao').innerHTML = [
     cardKpi({ rotulo: 'Atendimentos realizados', valor: nf.format(num(k.total_atendimentos)), apoio: 'no período selecionado' }),
     cardKpi({
@@ -569,8 +577,8 @@ function pintarVisaoSucesso(dados) {
     }),
     cardKpi({
       rotulo: 'Falhas da IA',
-      valor: nf.format(num(k.falhas_ia)),
-      alerta: num(k.falhas_ia) > 0,
+      valor: nf.format(totalFalhasIa),
+      alerta: totalFalhasIa > 0,
       apoio: 'atendimentos com falha crítica',
       sinal: 'falha_ia'
     })
@@ -897,6 +905,28 @@ async function carregarAtendimentos() {
     estado.lista = estado.demo
       ? window.VigiaDemo.atendimentos(estado.agente, { ...params, colaborador: estado.colaborador, base_data: estado.baseData })
       : await chamarApi('painel-vigia-engel-atendimentos', params);
+
+    // CORREÇÃO: Filtragem local para garantir que a tabela exiba apenas o motivo selecionado
+    // (mitiga problemas caso a API não suporte a filtragem exata por motivo de falha ainda).
+    if (estado.filtroMotivoFalha && estado.lista && estado.lista.itens) {
+      estado.lista.itens = estado.lista.itens.filter(item => {
+        const motivoFiltro = String(estado.filtroMotivoFalha).trim().toLowerCase();
+        const motivoAtendimento = String(item.falha_critica || '').trim().toLowerCase();
+        
+        const isNenhumaFiltro = motivoFiltro === 'nenhuma' || motivoFiltro === 'nenhum' || motivoFiltro === '';
+        const isNenhumaAtendimento = motivoAtendimento === 'nenhuma' || motivoAtendimento === 'nenhum' || motivoAtendimento === '';
+        
+        if (isNenhumaFiltro) {
+          return isNenhumaAtendimento;
+        }
+        return item.falha_critica === estado.filtroMotivoFalha;
+      });
+      // Atualiza o total apenas se estiver na primeira página para não quebrar a navegação visual
+      if (estado.pagina === 1 && estado.lista.itens.length < estado.limite) {
+        estado.lista.total = estado.lista.itens.length;
+      }
+    }
+
     renderizarTabela(estado.lista);
     marcarAtualizado();
   } catch (e) {
