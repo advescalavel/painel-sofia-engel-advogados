@@ -49,8 +49,18 @@ const CHIPS_AUDITORIA = [
   { chave: 'sem_resposta_60min', rotulo: 'Sem resposta há +1h' },
   { chave: 'falha_ia', rotulo: 'Falhas da IA' },
   { chave: 'janela_2h', rotulo: 'Janela oficial encerrando' },
-  { chave: 'com_feedback', rotulo: 'Com feedback da Laila', soSucesso: true }
+  { chave: 'insatisfacao', rotulo: 'Cliente insatisfeito', soDepartamento: 'sucesso_cliente' },
+  { chave: 'com_feedback', rotulo: 'Com feedback da Laila', soDepartamento: 'sucesso_cliente', precisaPermissao: true }
 ];
+
+// Nome de exibição da IA supervisionada, usado no rótulo "Score de …" da aba
+// Qualidade da IA — o Vigia (agora "Supervisora") é quem avalia, não quem é
+// avaliado, então o rótulo precisa nomear a IA sob avaliação, não o auditor.
+const NOME_IA_AVALIADA = {
+  sdr: 'IA Supervisora SDR',
+  fechamento: 'IA Supervisora de Fechamento',
+  sucesso: 'Sofia'
+};
 
 const nf = new Intl.NumberFormat('pt-BR');
 const nf1 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
@@ -80,7 +90,13 @@ const estado = {
   periodos: [],
   periodoRotulo: 'Hoje',
   periodoPreset: 'hoje',
-  sinais: { sem_resposta_60min: false, falha_ia: false, janela_2h: false, com_feedback: false },
+  sinais: { sem_resposta_60min: false, falha_ia: false, janela_2h: false, insatisfacao: false, com_feedback: false },
+  // Filtros categóricos adicionais da aba Atendimentos — ver README, seção
+  // "Pendências de backend" para o que ainda precisa existir na API.
+  filtroMotivoFalha: null,
+  filtroCriterio: null,
+  filtroTipoAtendimento: null,
+  filtroMotivoTransferencia: null,
   pagina: 1,
   limite: 25,
   dados: null,
@@ -142,6 +158,35 @@ function formatarBucket(bucket, granularidade) {
   const p = String(bucket).split('-');
   if (granularidade === 'mes') return NOMES_MES[Number(p[1]) - 1] + '/' + p[0].slice(2);
   return p[2] + '/' + p[1];
+}
+
+// Alguns retornos de série vêm com o bucket granular por hora (ex.: quando o
+// período selecionado é um único dia). O eixo sempre precisa mostrar a data
+// do dia, nunca a hora — então, para granularidade 'dia', agrupamos qualquer
+// bucket que caia no mesmo dia civil, somando os campos numéricos, antes de
+// desenhar o gráfico. Se o bucket já vier por dia, isso é um no-op (cada dia
+// já vira seu próprio grupo).
+function agruparSeriePorDia(dados) {
+  const mapa = new Map();
+  const ordem = [];
+  dados.forEach(d => {
+    const data = new Date(d.bucket);
+    const chave = isNaN(data)
+      ? String(d.bucket)
+      : data.getFullYear() + '-' + String(data.getMonth() + 1).padStart(2, '0') + '-' + String(data.getDate()).padStart(2, '0');
+    if (!mapa.has(chave)) {
+      const copia = Object.assign({}, d, { bucket: chave });
+      mapa.set(chave, copia);
+      ordem.push(chave);
+    } else {
+      const alvo = mapa.get(chave);
+      Object.keys(d).forEach(k => {
+        if (k === 'bucket') return;
+        if (typeof d[k] === 'number') alvo[k] = num(alvo[k]) + d[k];
+      });
+    }
+  });
+  return ordem.sort().map(c => mapa.get(c));
 }
 
 // =============================================================================
@@ -220,7 +265,7 @@ function pintarCarregandoMetricas() {
 // =============================================================================
 // KPI
 // =============================================================================
-function cardKpi({ rotulo, valor, apoio, tag, alerta, medidorPct, sinal }) {
+function cardKpi({ rotulo, valor, apoio, tag, alerta, medidorPct, sinal, status }) {
   const tagEl = tag ? `<span class="vg-kpi__tag">${escapeHtml(tag)}</span>` : '';
   const medidor = medidorPct != null ? `<span class="vg-kpi__medidor"><i style="width:${Math.max(0, Math.min(100, medidorPct))}%"></i></span>` : '';
   const apoioEl = apoio ? `<span class="vg-kpi__apoio">${escapeHtml(apoio)}</span>` : '';
@@ -229,8 +274,9 @@ function cardKpi({ rotulo, valor, apoio, tag, alerta, medidorPct, sinal }) {
     </div>
     <span class="vg-kpi__valor">${valor}</span>${medidor}${apoioEl}`;
 
-  if (sinal) {
-    return `<button class="vg-kpi${alerta ? ' vg-kpi--alerta' : ''}" type="button" data-sinal="${sinal}">
+  if (sinal || status) {
+    const atributo = sinal ? `data-sinal="${sinal}"` : `data-status="${status}"`;
+    return `<button class="vg-kpi${alerta ? ' vg-kpi--alerta' : ''}" type="button" ${atributo}>
       ${miolo}<span class="vg-kpi__ir">ver atendimentos →</span></button>`;
   }
   return `<div class="vg-kpi${alerta ? ' vg-kpi--alerta' : ''}">${miolo}</div>`;
@@ -257,6 +303,7 @@ function graficoBarras(container, dados, series, granularidade, opcoes) {
     el.innerHTML = blocoVazio('Sem dados nesse período', 'Amplie o período ou revise os filtros.');
     return;
   }
+  if (granularidade !== 'mes') dados = agruparSeriePorDia(dados);
   const totais = dados.map(d => series.reduce((acc, s) => acc + num(d[s.chave]), 0));
   const { ticks, topo } = ticksEixo(Math.max(...totais, 1));
 
@@ -316,15 +363,23 @@ function graficoComposicao(container, partes, opcoes) {
   const segs = partes.filter(p => num(p.valor) > 0).map(p =>
     `<span class="vg-comp__seg" style="width:${pct(num(p.valor), total)}%;background:${p.cor}" title="${escapeHtml(p.rotulo)}: ${nf.format(num(p.valor))}"></span>`
   ).join('');
-  const linhas = partes.map(p =>
-    `<span class="vg-comp__linha">
+  const cfg = opcoes || {};
+  const linhas = partes.map((p, i) =>
+    `<span class="vg-comp__linha${cfg.aoClicarParte ? ' vg-comp__linha--clicavel' : ''}"${cfg.aoClicarParte ? ` data-i="${i}" role="button" tabindex="0"` : ''}>
       <span class="vg-comp__ponto" style="background:${p.cor}"></span>
       <span class="vg-comp__nome">${escapeHtml(p.rotulo)}</span>
       <span class="vg-comp__valor">${nf.format(num(p.valor))}</span>
       <span class="vg-comp__pct">${nf1.format(pct(num(p.valor), total))}%</span>
     </span>`).join('');
   el.innerHTML = `<div class="vg-comp">${segs}</div><div class="vg-comp__legenda">${linhas}</div>
-    ${(opcoes && opcoes.rodape) ? `<p class="vg-card__apoio" style="margin-top:12px">${escapeHtml(opcoes.rodape)}</p>` : ''}`;
+    ${(cfg.rodape) ? `<p class="vg-card__apoio" style="margin-top:12px">${escapeHtml(cfg.rodape)}</p>` : ''}`;
+
+  if (cfg.aoClicarParte) {
+    el.querySelectorAll('.vg-comp__linha--clicavel').forEach(linha => {
+      linha.addEventListener('click', () => cfg.aoClicarParte(partes[Number(linha.dataset.i)]));
+      linha.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cfg.aoClicarParte(partes[Number(linha.dataset.i)]); } });
+    });
+  }
 }
 
 function graficoBarrasH(container, dados, campoRotulo, campoValor, opcoes) {
@@ -341,13 +396,25 @@ function graficoBarrasH(container, dados, campoRotulo, campoValor, opcoes) {
   el.innerHTML = '<div class="vg-barras">' + itens.map(d => {
     const valor = num(d[campoValor]);
     const rotulo = String(d[campoRotulo] == null ? '—' : d[campoRotulo]);
-    const parte = cfg.semParticipacao ? '' : ` <span class="vg-comp__pct">${nf1.format(pct(valor, soma))}%</span>`;
-    return `<div class="vg-barras__linha">
+    // Por padrão o valor secundário é a participação (%) desse item no total.
+    // Quando cfg.campoSecundario é passado, mostramos esse outro campo no
+    // lugar (ex.: quantidade avaliada ao lado da taxa de aprovação).
+    const parte = cfg.semParticipacao ? '' : cfg.campoSecundario
+      ? ` <span class="vg-comp__pct">${escapeHtml(cfg.formatadorSecundario ? cfg.formatadorSecundario(d[cfg.campoSecundario]) : nf.format(num(d[cfg.campoSecundario])))}</span>`
+      : ` <span class="vg-comp__pct">${nf1.format(pct(valor, soma))}%</span>`;
+    return `<div class="vg-barras__linha${cfg.aoClicarItem ? ' vg-barras__linha--clicavel' : ''}"${cfg.aoClicarItem ? ' role="button" tabindex="0"' : ''}>
       <span class="vg-barras__rotulo" title="${escapeHtml(rotulo)}">${escapeHtml(rotulo)}</span>
       <span class="vg-barras__trilha"><i class="vg-barras__preenchido" style="width:${pct(valor, max)}%;${cfg.cor ? 'background:' + cfg.cor : ''}"></i></span>
       <span class="vg-barras__valor">${cfg.formatador ? cfg.formatador(valor) : nf.format(valor)}${parte}</span>
     </div>`;
   }).join('') + '</div>';
+
+  if (cfg.aoClicarItem) {
+    el.querySelectorAll('.vg-barras__linha--clicavel').forEach((linha, i) => {
+      linha.addEventListener('click', () => cfg.aoClicarItem(itens[i]));
+      linha.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cfg.aoClicarItem(itens[i]); } });
+    });
+  }
 }
 
 function cardGrafico(id, titulo, apoio, largo, nota) {
@@ -490,13 +557,15 @@ function pintarVisaoSucesso(dados) {
       rotulo: 'Transferidos e não atendidos',
       valor: nf.format(num(k.transferidos_sem_atendimento)),
       alerta: num(k.transferidos_sem_atendimento) > 0,
-      apoio: 'colaborador humano não assumiu'
+      apoio: 'colaborador humano não assumiu',
+      status: 'transferido_sem_atendimento'
     }),
     cardKpi({
       rotulo: 'Clientes insatisfeitos',
       valor: nf.format(num(k.clientes_insatisfeitos)),
       alerta: num(k.clientes_insatisfeitos) > 0,
-      apoio: 'insatisfação detectada pelo Vigia'
+      apoio: 'insatisfação detectada pela Supervisora',
+      sinal: 'insatisfacao'
     }),
     cardKpi({
       rotulo: 'Falhas da IA',
@@ -523,12 +592,21 @@ function pintarVisaoSucesso(dados) {
   });
 
   graficoComposicao('g-composicao', [
-    { rotulo: 'Resolvido só pela IA', valor: num(k.resolvidos), cor: 'var(--ae-serie-2)' },
-    { rotulo: 'Transferido para humano', valor: num(k.transferidos), cor: 'var(--ae-serie-1)' }
-  ], { rodape: nf.format(num(k.total_atendimentos)) + ' atendimentos no período' });
+    { rotulo: 'Resolvido só pela IA', valor: num(k.resolvidos), cor: 'var(--ae-serie-2)', status: 'resolvido' },
+    { rotulo: 'Transferido para humano', valor: num(k.transferidos), cor: 'var(--ae-serie-1)', status: 'transferido' }
+  ], {
+    rodape: nf.format(num(k.total_atendimentos)) + ' atendimentos no período',
+    aoClicarParte: (p) => irParaAtendimentos({ status: p.status })
+  });
 
-  graficoBarrasH('g-tipos', dados.tipos_atendimento, 'tipo', 'quantidade', { cor: 'var(--ae-serie-4)' });
-  graficoBarrasH('g-transferencia', dados.motivos_transferencia, 'motivo', 'quantidade', { cor: 'var(--ae-serie-3)' });
+  graficoBarrasH('g-tipos', dados.tipos_atendimento, 'tipo', 'quantidade', {
+    cor: 'var(--ae-serie-4)',
+    aoClicarItem: (d) => irParaAtendimentos({ tipoAtendimento: d.tipo })
+  });
+  graficoBarrasH('g-transferencia', dados.motivos_transferencia, 'motivo', 'quantidade', {
+    cor: 'var(--ae-serie-3)',
+    aoClicarItem: (d) => irParaAtendimentos({ motivoTransferencia: d.motivo })
+  });
 }
 
 // =============================================================================
@@ -536,35 +614,62 @@ function pintarVisaoSucesso(dados) {
 // =============================================================================
 const CORES_FAIXA = ['var(--ae-serie-7)', 'var(--ae-serie-1)', 'var(--ae-serie-3)', 'var(--ae-serie-2)', 'var(--ae-serie-5)'];
 
+// "Nenhuma" representa ausência de falha crítica — não é um motivo de falha e
+// não deve contar nos gráficos de falha crítica nem no indicador "Com falha
+// crítica" (ver observações da Mell sobre o gráfico de motivos).
+function semFalhaCritica(motivo) {
+  const m = String(motivo || '').trim().toLowerCase();
+  return m === 'nenhuma' || m === 'nenhum' || m === '';
+}
+
 function pintarQualidade(dados) {
   const k = dados.kpis || {};
   const faixas = (dados.distribuicao_score_faixas || []).map((f, i) => ({ chave: f.chave, rotulo: f.rotulo, cor: CORES_FAIXA[i % CORES_FAIXA.length] }));
+
+  const falhaCriticaLista = (dados.falha_critica || []).filter(f => !semFalhaCritica(f.motivo));
+  // Se o backend já mandar a lista de motivos, ela é a fonte da verdade (exclui
+  // "Nenhuma"); só cai para o KPI pronto quando a lista não vier na resposta.
+  const comFalhaCritica = Array.isArray(dados.falha_critica)
+    ? falhaCriticaLista.reduce((acc, f) => acc + num(f.quantidade), 0)
+    : num(k.com_falha_critica);
 
   $('kpis-qualidade').innerHTML = [
     cardKpi({
       rotulo: 'Efetividade média da IA',
       valor: k.efetividade_media_pct != null ? nf.format(num(k.efetividade_media_pct)) + '%' : '—',
-      apoio: 'score do Vigia no período',
+      apoio: 'score da ' + (NOME_IA_AVALIADA[estado.agente] || 'IA') + ' no período',
       medidorPct: num(k.efetividade_media_pct)
     }),
-    cardKpi({ rotulo: 'Atendimentos avaliados', valor: nf.format(num(k.avaliados)), apoio: 'com score do Vigia no período' }),
+    cardKpi({ rotulo: 'Atendimentos avaliados', valor: nf.format(num(k.avaliados)), apoio: 'com score da ' + (NOME_IA_AVALIADA[estado.agente] || 'IA') + ' no período' }),
     cardKpi({
       rotulo: 'Com falha crítica',
-      valor: nf.format(num(k.com_falha_critica)),
-      alerta: num(k.com_falha_critica) > 0,
-      apoio: num(k.avaliados) ? nf1.format(pct(num(k.com_falha_critica), num(k.avaliados))) + '% dos avaliados' : '—',
+      valor: nf.format(comFalhaCritica),
+      alerta: comFalhaCritica > 0,
+      apoio: num(k.avaliados) ? nf1.format(pct(comFalhaCritica, num(k.avaliados))) + '% dos avaliados' : '—',
       sinal: 'falha_ia'
     })
   ].join('');
 
   $('graficos-qualidade').innerHTML =
     cardGrafico('q-distribuicao', 'Distribuição do score de efetividade', 'atendimentos por faixa de nota, ao longo do tempo', true, notaGranularidade(dados)) +
-    cardGrafico('q-criterios', 'Critérios avaliados', 'média por critério') +
+    cardGrafico('q-criterios', 'Critérios avaliados', 'taxa de aprovação por critério, com a quantidade avaliada ao lado') +
     cardGrafico('q-falha', 'Motivo de falha crítica', 'quantidade por motivo');
 
   graficoBarras('q-distribuicao', dados.distribuicao_score_serie, faixas, dados.granularidade);
-  graficoBarrasH('q-criterios', dados.criterios, 'criterio', 'media', { formatador: v => nf1.format(v), semParticipacao: true, cor: 'var(--ae-serie-2)' });
-  graficoBarrasH('q-falha', dados.falha_critica, 'motivo', 'quantidade', { cor: 'var(--ae-serie-7)' });
+  // "Taxa de aprovação" = % de atendimentos em que o critério foi cumprido —
+  // não a nota média 0–100 (ver README, "Pendências de backend": precisa de
+  // `taxa_aprovacao_pct` e `quantidade_avaliada` por critério).
+  graficoBarrasH('q-criterios', dados.criterios, 'criterio', 'taxa_aprovacao_pct', {
+    formatador: v => nf1.format(v) + '%',
+    campoSecundario: 'quantidade_avaliada',
+    formatadorSecundario: v => nf.format(num(v)) + ' aval.',
+    cor: 'var(--ae-serie-2)',
+    aoClicarItem: (d) => irParaAtendimentos({ criterio: d.criterio })
+  });
+  graficoBarrasH('q-falha', falhaCriticaLista, 'motivo', 'quantidade', {
+    cor: 'var(--ae-serie-7)',
+    aoClicarItem: (d) => irParaAtendimentos({ motivoFalha: d.motivo })
+  });
 }
 
 // =============================================================================
@@ -572,7 +677,7 @@ function pintarQualidade(dados) {
 // =============================================================================
 const LARGURAS_COLUNA = {
   'Cliente': 16, 'Responsável': 10, 'Tipo': 8, 'Criado em': 9, 'Concluído em': 9,
-  'Status': 8, 'Score': 6, 'Avaliação do Vigia': 28, 'Sinais': 6, 'Feedbacks (Laila)': 10
+  'Status': 8, 'Score': 6, 'Avaliação da Supervisora': 28, 'Sinais': 6, 'Feedbacks (Laila)': 10
 };
 
 function pintarColgroup() {
@@ -586,13 +691,15 @@ function colunas() {
   if (estado.departamento === 'sucesso_cliente') base.push('Tipo');
   base.push('Criado em');
   if (estado.departamento === 'sucesso_cliente') base.push('Concluído em');
-  base.push('Status', 'Score', 'Avaliação do Vigia', 'Sinais');
+  base.push('Status', 'Score', 'Avaliação da Supervisora', 'Sinais');
   if (podeDarFeedback()) base.push('Feedbacks (Laila)');
   return base;
 }
 
 function pintarChipsAuditoria(contadores) {
-  const chips = CHIPS_AUDITORIA.filter(c => !c.soSucesso || podeDarFeedback());
+  const chips = CHIPS_AUDITORIA.filter(c =>
+    (!c.soDepartamento || c.soDepartamento === estado.departamento) && (!c.precisaPermissao || podeDarFeedback())
+  );
   $('chips-auditoria').innerHTML = chips.map(c => {
     const qtd = contadores && contadores[c.chave] != null ? `<span class="ae-chip__cont">${nf.format(contadores[c.chave])}</span>` : '';
     return `<button class="ae-chip${estado.sinais[c.chave] ? ' is-ativo' : ''}" type="button" data-sinal="${c.chave}">${escapeHtml(c.rotulo)}${qtd}</button>`;
@@ -723,7 +830,11 @@ function parametrosFiltro() {
     avaliado: estado.avaliado,
     base_data: estado.baseData,
     scope_token: (estado.permissoes && estado.permissoes.scope_token) || '',
-    ...(estado.colaborador ? { colaborador: estado.colaborador } : {})
+    ...(estado.colaborador ? { colaborador: estado.colaborador } : {}),
+    ...(estado.filtroMotivoFalha ? { motivo_falha: estado.filtroMotivoFalha } : {}),
+    ...(estado.filtroCriterio ? { criterio: estado.filtroCriterio } : {}),
+    ...(estado.filtroTipoAtendimento ? { tipo_atendimento: estado.filtroTipoAtendimento } : {}),
+    ...(estado.filtroMotivoTransferencia ? { motivo_transferencia: estado.filtroMotivoTransferencia } : {})
   };
 }
 
@@ -752,7 +863,7 @@ async function carregarMetricas(forcar) {
     pintarMetricas();
     marcarAtualizado();
   } catch (e) {
-    ativarDemo('A API do Vigia não respondeu (' + e.message + '), então o painel exibe um conjunto de exemplo. Nenhum número aqui é dado real da operação.');
+    ativarDemo('A API da Supervisora não respondeu (' + e.message + '), então o painel exibe um conjunto de exemplo. Nenhum número aqui é dado real da operação.');
     try {
       estado.dados = window.VigiaDemo.metricas(estado.agente, estado.periodos);
       pintarMetricas();
@@ -770,6 +881,7 @@ async function carregarMetricas(forcar) {
 function pintarMetricas() {
   const dados = estado.dados;
   if (!dados) return;
+  popularFiltrosDinamicos(dados);
   if (estado.secao === 'qualidade') pintarQualidade(dados);
   else if (estado.agente === 'sdr') pintarVisaoSdr(dados);
   else if (estado.agente === 'fechamento') pintarVisaoFechamento(dados);
@@ -788,7 +900,7 @@ async function carregarAtendimentos() {
     renderizarTabela(estado.lista);
     marcarAtualizado();
   } catch (e) {
-    ativarDemo('A API do Vigia não respondeu (' + e.message + '), então o painel exibe um conjunto de exemplo. Nenhum número aqui é dado real da operação.');
+    ativarDemo('A API da Supervisora não respondeu (' + e.message + '), então o painel exibe um conjunto de exemplo. Nenhum número aqui é dado real da operação.');
     try {
       estado.lista = window.VigiaDemo.atendimentos(estado.agente, { ...params, colaborador: estado.colaborador, base_data: estado.baseData });
       renderizarTabela(estado.lista);
@@ -931,12 +1043,79 @@ function atualizarResumoFiltros() {
     pilulas.push(`<span class="vg-pilula">Sinal: <b>${escapeHtml(chip ? chip.rotulo : k)}</b>
       <button class="vg-pilula__x" type="button" data-limpar="sinal:${k}" aria-label="Remover sinal">×</button></span>`);
   });
+  if (estado.filtroCriterio) {
+    pilulas.push(`<span class="vg-pilula">Critério: <b>${escapeHtml(estado.filtroCriterio)}</b>
+      <button class="vg-pilula__x" type="button" data-limpar="criterio" aria-label="Remover filtro de critério">×</button></span>`);
+  }
+  if (estado.filtroMotivoFalha) {
+    pilulas.push(`<span class="vg-pilula">Falha: <b>${escapeHtml(estado.filtroMotivoFalha)}</b>
+      <button class="vg-pilula__x" type="button" data-limpar="motivo-falha" aria-label="Remover filtro de falha">×</button></span>`);
+  }
+  if (estado.filtroTipoAtendimento) {
+    pilulas.push(`<span class="vg-pilula">Tipo: <b>${escapeHtml(estado.filtroTipoAtendimento)}</b>
+      <button class="vg-pilula__x" type="button" data-limpar="tipo-atendimento" aria-label="Remover filtro de tipo">×</button></span>`);
+  }
+  if (estado.filtroMotivoTransferencia) {
+    pilulas.push(`<span class="vg-pilula">Transferência: <b>${escapeHtml(estado.filtroMotivoTransferencia)}</b>
+      <button class="vg-pilula__x" type="button" data-limpar="motivo-transferencia" aria-label="Remover filtro de transferência">×</button></span>`);
+  }
 
   $('filtros-resumo').innerHTML = pilulas.join('') + (pilulas.length ? '<button class="vg-limpar" type="button" data-limpar="tudo">Limpar filtros</button>' : '');
   $('filtro-colaborador').classList.toggle('is-alterado', !!estado.colaborador);
   $('filtro-status').classList.toggle('is-alterado', estado.status !== 'todos');
   $('filtro-base-data').classList.toggle('is-alterado', estado.baseData !== 'criacao');
+  $('filtro-criterio').classList.toggle('is-alterado', !!estado.filtroCriterio);
+  $('filtro-motivo-falha').classList.toggle('is-alterado', !!estado.filtroMotivoFalha);
   $('btn-periodo').classList.toggle('is-alterado', !estado.periodoPreset);
+}
+
+// Mantém os <select> do topo em sincronia quando o filtro é setado por
+// programação (clique em KPI/gráfico), não só quando o próprio usuário troca
+// a opção no dropdown.
+function sincronizarSelectsFiltro() {
+  $('filtro-status').value = estado.status;
+  $('filtro-criterio').value = estado.filtroCriterio || '';
+  $('filtro-motivo-falha').value = estado.filtroMotivoFalha || '';
+}
+
+// Ponto único de entrada para qualquer "drill-down": clique em KPI, em
+// segmento de composição ou em barra de gráfico. Sempre zera os filtros
+// categóricos/sinais anteriores antes de aplicar o novo, depois abre a aba
+// Atendimentos. Alguns campos (tipoAtendimento, motivoTransferencia,
+// motivoFalha, criterio) dependem de suporte no back-end — ver README.
+function irParaAtendimentos(patch) {
+  Object.keys(estado.sinais).forEach(k => { estado.sinais[k] = false; });
+  estado.filtroMotivoFalha = null;
+  estado.filtroCriterio = null;
+  estado.filtroTipoAtendimento = null;
+  estado.filtroMotivoTransferencia = null;
+  if (patch.status !== undefined) estado.status = patch.status;
+  if (patch.sinal) estado.sinais[patch.sinal] = true;
+  if (patch.motivoFalha) estado.filtroMotivoFalha = patch.motivoFalha;
+  if (patch.criterio) estado.filtroCriterio = patch.criterio;
+  if (patch.tipoAtendimento) estado.filtroTipoAtendimento = patch.tipoAtendimento;
+  if (patch.motivoTransferencia) estado.filtroMotivoTransferencia = patch.motivoTransferencia;
+  estado.pagina = 1;
+  sincronizarSelectsFiltro();
+  atualizarResumoFiltros();
+  selecionarSecao('auditoria');
+}
+
+// Popula os selects de Critério e Motivo de falha com as opções vistas na
+// última carga de métricas (não existe um "catálogo" fixo dessas listas).
+function popularFiltrosDinamicos(dados) {
+  const criterios = (dados.criterios || []).map(c => c.criterio).filter(Boolean);
+  const motivos = (dados.falha_critica || []).map(f => f.motivo).filter(m => m && !semFalhaCritica(m));
+  const selCriterio = $('filtro-criterio');
+  const selMotivo = $('filtro-motivo-falha');
+  const atualCriterio = estado.filtroCriterio;
+  const atualMotivo = estado.filtroMotivoFalha;
+  selCriterio.innerHTML = '<option value="">Todos os critérios</option>' +
+    criterios.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  selMotivo.innerHTML = '<option value="">Todos os motivos de falha</option>' +
+    motivos.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+  selCriterio.value = atualCriterio || '';
+  selMotivo.value = atualMotivo || '';
 }
 
 function aplicarPreset(chave, semRecarregar) {
@@ -1101,7 +1280,7 @@ async function carregarPermissoes() {
     if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
     return resposta.json();
   } catch (e) {
-    ativarDemo('Não foi possível confirmar suas permissões na API do Vigia, então o painel exibe um conjunto de exemplo. Nenhum número aqui é dado real da operação.');
+    ativarDemo('Não foi possível confirmar suas permissões na API da Supervisora, então o painel exibe um conjunto de exemplo. Nenhum número aqui é dado real da operação.');
     return window.VigiaDemo.permissoes;
   }
 }
@@ -1153,6 +1332,10 @@ function selecionarDepartamento(departamento) {
   estado.colaborador = null;
   estado.baseData = departamento === 'sucesso_cliente' ? 'conclusao' : 'criacao';
   Object.keys(estado.sinais).forEach(k => { estado.sinais[k] = false; });
+  estado.filtroMotivoFalha = null;
+  estado.filtroCriterio = null;
+  estado.filtroTipoAtendimento = null;
+  estado.filtroMotivoTransferencia = null;
   estado.dados = null;
   estado.pagina = 1;
   pintarSegDepartamento();
@@ -1222,6 +1405,14 @@ function ligarNavegacao() {
     pintarFiltrosDoDepartamento();
     recarregarPorFiltro();
   });
+  $('filtro-criterio').addEventListener('change', (e) => {
+    estado.filtroCriterio = e.target.value || null;
+    recarregarPorFiltro();
+  });
+  $('filtro-motivo-falha').addEventListener('change', (e) => {
+    estado.filtroMotivoFalha = e.target.value || null;
+    recarregarPorFiltro();
+  });
   $('filtro-limite').addEventListener('change', (e) => {
     estado.limite = Number(e.target.value);
     estado.pagina = 1;
@@ -1240,6 +1431,10 @@ function ligarNavegacao() {
       $('filtro-base-data').value = estado.baseData;
     }
     if (qual === 'periodo' || qual === 'tudo') aplicarPreset('hoje', true);
+    if (qual === 'criterio' || qual === 'tudo') { estado.filtroCriterio = null; $('filtro-criterio').value = ''; }
+    if (qual === 'motivo-falha' || qual === 'tudo') { estado.filtroMotivoFalha = null; $('filtro-motivo-falha').value = ''; }
+    if (qual === 'tipo-atendimento' || qual === 'tudo') estado.filtroTipoAtendimento = null;
+    if (qual === 'motivo-transferencia' || qual === 'tudo') estado.filtroMotivoTransferencia = null;
     if (qual === 'tudo') Object.keys(estado.sinais).forEach(k => { estado.sinais[k] = false; });
     if (qual.indexOf('sinal:') === 0) estado.sinais[qual.split(':')[1]] = false;
     recarregarPorFiltro();
@@ -1256,13 +1451,10 @@ function ligarNavegacao() {
 
   document.querySelectorAll('#kpis-visao, #kpis-qualidade').forEach(el => {
     el.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-sinal]');
+      const b = e.target.closest('[data-sinal], [data-status]');
       if (!b) return;
-      Object.keys(estado.sinais).forEach(k => { estado.sinais[k] = false; });
-      estado.sinais[b.dataset.sinal] = true;
-      estado.pagina = 1;
-      atualizarResumoFiltros();
-      selecionarSecao('auditoria');
+      if (b.dataset.sinal) irParaAtendimentos({ sinal: b.dataset.sinal });
+      else irParaAtendimentos({ status: b.dataset.status });
     });
   });
 
