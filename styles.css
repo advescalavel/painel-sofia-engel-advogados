@@ -559,8 +559,19 @@ button.vg-campo[aria-expanded="true"] { border-color: var(--ae-pink); }
 .vg-comp__linha { display: grid; grid-template-columns: 10px 1fr auto auto; align-items: center; gap: 9px; font-size: 12.5px; }
 .vg-comp__ponto { width: 10px; height: 10px; border-radius: 3px; }
 .vg-comp__nome { color: var(--ae-text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vg-comp__valor { font-weight: 600; font-variant-numeric: tabular-nums; }
-.vg-comp__pct { color: var(--ae-text-faint); font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+.vg-comp__valor { font-weight: 600; font-variant-numeric: tabular-nums; margin-right: 2px; }
+.vg-comp__linha--clicavel, .vg-barras__linha--clicavel {
+  cursor: pointer; border-radius: 8px; margin: -4px -6px; padding: 4px 6px; transition: background .15s ease;
+}
+.vg-comp__linha--clicavel:hover, .vg-comp__linha--clicavel:focus-visible,
+.vg-barras__linha--clicavel:hover, .vg-barras__linha--clicavel:focus-visible {
+  background: var(--ae-surface-2); outline: none;
+}
+.vg-comp__pct {
+  color: var(--ae-text-faint); font-variant-numeric: tabular-nums; font-size: 11px;
+  min-width: 44px; text-align: right; margin-left: 10px; padding: 2px 8px;
+  border-radius: var(--ae-radius-pill); background: var(--ae-surface-2);
+}
 
 /* --- Barras horizontais ------------------------------------------------ */
 .vg-barras { display: flex; flex-direction: column; gap: 11px; }
