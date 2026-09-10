@@ -160,12 +160,6 @@ function formatarBucket(bucket, granularidade) {
   return p[2] + '/' + p[1];
 }
 
-// Alguns retornos de série vêm com o bucket granular por hora (ex.: quando o
-// período selecionado é um único dia). O eixo sempre precisa mostrar a data
-// do dia, nunca a hora — então, para granularidade 'dia', agrupamos qualquer
-// bucket que caia no mesmo dia civil, somando os campos numéricos, antes de
-// desenhar o gráfico. Se o bucket já vier por dia, isso é um no-op (cada dia
-// já vira seu próprio grupo).
 function agruparSeriePorDia(dados) {
   const mapa = new Map();
   const ordem = [];
@@ -283,7 +277,7 @@ function cardKpi({ rotulo, valor, apoio, tag, alerta, medidorPct, sinal, status 
 }
 
 // =============================================================================
-// Gráficos
+// Gráficos (Ajustados para ocultar o card se não houver dados)
 // =============================================================================
 function ticksEixo(max) {
   const passos = 4;
@@ -298,13 +292,20 @@ function ticksEixo(max) {
 function graficoBarras(container, dados, series, granularidade, opcoes) {
   const el = typeof container === 'string' ? $(container) : container;
   if (!el) return;
+  const card = el.closest('.vg-card');
   const cfg = opcoes || {};
-  if (!dados || !dados.length) {
-    el.innerHTML = blocoVazio('Sem dados nesse período', 'Amplie o período ou revise os filtros.');
+
+  if (granularidade !== 'mes' && dados && dados.length) dados = agruparSeriePorDia(dados);
+  const totais = dados ? dados.map(d => series.reduce((acc, s) => acc + num(d[s.chave]), 0)) : [];
+  const somaTotal = totais.reduce((a, b) => a + b, 0);
+
+  if (!dados || !dados.length || somaTotal === 0) {
+    if (card) card.hidden = true;
+    el.innerHTML = '';
     return;
   }
-  if (granularidade !== 'mes') dados = agruparSeriePorDia(dados);
-  const totais = dados.map(d => series.reduce((acc, s) => acc + num(d[s.chave]), 0));
+  if (card) card.hidden = false;
+
   const { ticks, topo } = ticksEixo(Math.max(...totais, 1));
 
   const legenda = series.map(s => {
@@ -355,11 +356,15 @@ function graficoBarras(container, dados, series, granularidade, opcoes) {
 function graficoComposicao(container, partes, opcoes) {
   const el = typeof container === 'string' ? $(container) : container;
   if (!el) return;
-  const total = partes.reduce((acc, p) => acc + num(p.valor), 0);
+  const card = el.closest('.vg-card');
+  const total = partes ? partes.reduce((acc, p) => acc + num(p.valor), 0) : 0;
   if (!total) {
-    el.innerHTML = blocoVazio('Sem dados nesse período', 'Amplie o período ou revise os filtros.');
+    if (card) card.hidden = true;
+    el.innerHTML = '';
     return;
   }
+  if (card) card.hidden = false;
+
   const segs = partes.filter(p => num(p.valor) > 0).map(p =>
     `<span class="vg-comp__seg" style="width:${pct(num(p.valor), total)}%;background:${p.cor}" title="${escapeHtml(p.rotulo)}: ${nf.format(num(p.valor))}"></span>`
   ).join('');
@@ -385,20 +390,21 @@ function graficoComposicao(container, partes, opcoes) {
 function graficoBarrasH(container, dados, campoRotulo, campoValor, opcoes) {
   const el = typeof container === 'string' ? $(container) : container;
   if (!el) return;
+  const card = el.closest('.vg-card');
   const cfg = opcoes || {};
-  if (!dados || !dados.length) {
-    el.innerHTML = blocoVazio('Sem dados nesse período', 'Amplie o período ou revise os filtros.');
+  const soma = dados ? dados.reduce((acc, d) => acc + num(d[campoValor]), 0) : 0;
+  if (!dados || !dados.length || soma === 0) {
+    if (card) card.hidden = true;
+    el.innerHTML = '';
     return;
   }
+  if (card) card.hidden = false;
+
   const itens = dados.slice().sort((a, b) => num(b[campoValor]) - num(a[campoValor]));
   const max = Math.max(...itens.map(d => num(d[campoValor])), 1);
-  const soma = itens.reduce((acc, d) => acc + num(d[campoValor]), 0);
   el.innerHTML = '<div class="vg-barras">' + itens.map(d => {
     const valor = num(d[campoValor]);
     const rotulo = String(d[campoRotulo] == null ? '—' : d[campoRotulo]);
-    // Por padrão o valor secundário é a participação (%) desse item no total.
-    // Quando cfg.campoSecundario é passado, mostramos esse outro campo no
-    // lugar (ex.: quantidade avaliada ao lado da taxa de aprovação).
     const parte = cfg.semParticipacao ? '' : cfg.campoSecundario
       ? ` <span class="vg-comp__pct">${escapeHtml(cfg.formatadorSecundario ? cfg.formatadorSecundario(d[cfg.campoSecundario]) : nf.format(num(d[cfg.campoSecundario])))}</span>`
       : ` <span class="vg-comp__pct">${nf1.format(pct(valor, soma))}%</span>`;
@@ -546,7 +552,6 @@ function pintarVisaoFechamento(dados) {
 function pintarVisaoSucesso(dados) {
   const k = dados.kpis || {};
 
-  // CORREÇÃO: Recalcula o total de falhas da IA desconsiderando o motivo "Nenhuma"
   let totalFalhasIa = num(k.falhas_ia);
   if (Array.isArray(dados.falha_critica)) {
     const falhasReais = dados.falha_critica.filter(f => !semFalhaCritica(f.motivo));
@@ -622,9 +627,6 @@ function pintarVisaoSucesso(dados) {
 // =============================================================================
 const CORES_FAIXA = ['var(--ae-serie-7)', 'var(--ae-serie-1)', 'var(--ae-serie-3)', 'var(--ae-serie-2)', 'var(--ae-serie-5)'];
 
-// "Nenhuma" representa ausência de falha crítica — não é um motivo de falha e
-// não deve contar nos gráficos de falha crítica nem no indicador "Com falha
-// crítica" (ver observações da Mell sobre o gráfico de motivos).
 function semFalhaCritica(motivo) {
   const m = String(motivo || '').trim().toLowerCase();
   return m === 'nenhuma' || m === 'nenhum' || m === '';
@@ -635,8 +637,6 @@ function pintarQualidade(dados) {
   const faixas = (dados.distribuicao_score_faixas || []).map((f, i) => ({ chave: f.chave, rotulo: f.rotulo, cor: CORES_FAIXA[i % CORES_FAIXA.length] }));
 
   const falhaCriticaLista = (dados.falha_critica || []).filter(f => !semFalhaCritica(f.motivo));
-  // Se o backend já mandar a lista de motivos, ela é a fonte da verdade (exclui
-  // "Nenhuma"); só cai para o KPI pronto quando a lista não vier na resposta.
   const comFalhaCritica = Array.isArray(dados.falha_critica)
     ? falhaCriticaLista.reduce((acc, f) => acc + num(f.quantidade), 0)
     : num(k.com_falha_critica);
@@ -664,9 +664,6 @@ function pintarQualidade(dados) {
     cardGrafico('q-falha', 'Motivo de falha crítica', 'quantidade por motivo');
 
   graficoBarras('q-distribuicao', dados.distribuicao_score_serie, faixas, dados.granularidade);
-  // "Taxa de aprovação" = % de atendimentos em que o critério foi cumprido —
-  // não a nota média 0–100 (ver README, "Pendências de backend": precisa de
-  // `taxa_aprovacao_pct` e `quantidade_avaliada` por critério).
   graficoBarrasH('q-criterios', dados.criterios, 'criterio', 'taxa_aprovacao_pct', {
     formatador: v => nf1.format(v) + '%',
     campoSecundario: 'quantidade_avaliada',
@@ -906,8 +903,6 @@ async function carregarAtendimentos() {
       ? window.VigiaDemo.atendimentos(estado.agente, { ...params, colaborador: estado.colaborador, base_data: estado.baseData })
       : await chamarApi('painel-vigia-engel-atendimentos', params);
 
-    // CORREÇÃO: Filtragem local para garantir que a tabela exiba apenas o motivo selecionado
-    // (mitiga problemas caso a API não suporte a filtragem exata por motivo de falha ainda).
     if (estado.filtroMotivoFalha && estado.lista && estado.lista.itens) {
       estado.lista.itens = estado.lista.itens.filter(item => {
         const motivoFiltro = String(estado.filtroMotivoFalha).trim().toLowerCase();
@@ -921,7 +916,6 @@ async function carregarAtendimentos() {
         }
         return item.falha_critica === estado.filtroMotivoFalha;
       });
-      // Atualiza o total apenas se estiver na primeira página para não quebrar a navegação visual
       if (estado.pagina === 1 && estado.lista.itens.length < estado.limite) {
         estado.lista.total = estado.lista.itens.length;
       }
@@ -1099,20 +1093,12 @@ function atualizarResumoFiltros() {
   $('btn-periodo').classList.toggle('is-alterado', !estado.periodoPreset);
 }
 
-// Mantém os <select> do topo em sincronia quando o filtro é setado por
-// programação (clique em KPI/gráfico), não só quando o próprio usuário troca
-// a opção no dropdown.
 function sincronizarSelectsFiltro() {
   $('filtro-status').value = estado.status;
   $('filtro-criterio').value = estado.filtroCriterio || '';
   $('filtro-motivo-falha').value = estado.filtroMotivoFalha || '';
 }
 
-// Ponto único de entrada para qualquer "drill-down": clique em KPI, em
-// segmento de composição ou em barra de gráfico. Sempre zera os filtros
-// categóricos/sinais anteriores antes de aplicar o novo, depois abre a aba
-// Atendimentos. Alguns campos (tipoAtendimento, motivoTransferencia,
-// motivoFalha, criterio) dependem de suporte no back-end — ver README.
 function irParaAtendimentos(patch) {
   Object.keys(estado.sinais).forEach(k => { estado.sinais[k] = false; });
   estado.filtroMotivoFalha = null;
@@ -1131,8 +1117,6 @@ function irParaAtendimentos(patch) {
   selecionarSecao('auditoria');
 }
 
-// Popula os selects de Critério e Motivo de falha com as opções vistas na
-// última carga de métricas (não existe um "catálogo" fixo dessas listas).
 function popularFiltrosDinamicos(dados) {
   const criterios = (dados.criterios || []).map(c => c.criterio).filter(Boolean);
   const motivos = (dados.falha_critica || []).map(f => f.motivo).filter(m => m && !semFalhaCritica(m));
@@ -1347,7 +1331,6 @@ function pintarFiltrosDoDepartamento() {
     `<option value="${o[0]}"${(estado.colaborador || 'todos') === o[0] ? ' selected' : ''}>${escapeHtml(o[1])}</option>`).join('');
   $('filtro-base-data').hidden = estado.departamento !== 'sucesso_cliente';
   $('filtro-base-data').value = estado.baseData;
-  // Com o período apoiado na data de conclusão, "em andamento" não existe.
   const statusDisponiveis = dep().status.filter(s => !(estado.baseData === 'conclusao' && s[0] === 'em_andamento'));
   if (estado.status === 'em_andamento' && estado.baseData === 'conclusao') estado.status = 'todos';
   $('filtro-status').innerHTML = statusDisponiveis.map(s =>
