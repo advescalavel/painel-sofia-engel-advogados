@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Painel Vigia — Engel Advogados</title>
+<title>Painel Supervisora — Engel Advogados</title>
 
 <script>
   try {
@@ -28,7 +28,7 @@
       <span class="ae-logo ae-logo--completo vg-so-largo" aria-label="Advocacia Escalável" id="logo-completo"></span>
       <span class="ae-logo ae-logo--isotipo vg-so-compacto" aria-label="Advocacia Escalável" id="logo-isotipo"></span>
       <span class="ae-produto__sep" aria-hidden="true"></span>
-      <span class="ae-produto__nome">PAINEL <b>VIGIA</b><span class="vg-cliente-nome">Engel Advogados</span></span>
+      <span class="ae-produto__nome">PAINEL <b>SUPERVISORA</b><span class="vg-cliente-nome">Engel Advogados</span></span>
     </div>
 
     <div class="vg-seg" role="group" aria-label="Departamento" id="seg-departamento"></div>
@@ -49,7 +49,7 @@
 
   <p class="vg-demo" id="aviso-demo" hidden>
     <span aria-hidden="true">◍</span>
-    <span id="aviso-demo-texto">Dados de demonstração — o painel não conseguiu falar com a API do Vigia. Nenhum número aqui é dado real da operação.</span>
+    <span id="aviso-demo-texto">Dados de demonstração — o painel não conseguiu falar com a API da Supervisora. Nenhum número aqui é dado real da operação.</span>
   </p>
 
   <div class="vg-barra">
@@ -117,8 +117,14 @@
       </select>
       <select id="filtro-colaborador" class="vg-campo vg-campo--sel" aria-label="Filtrar por colaborador ou IA"></select>
       <select id="filtro-status" class="vg-campo vg-campo--sel" aria-label="Filtrar por status"></select>
-      <select id="filtro-avaliado" class="vg-campo vg-campo--sel" aria-label="Filtrar por avaliação do Vigia">
-        <option value="sim" selected>Avaliados pelo Vigia</option>
+      <select id="filtro-criterio" class="vg-campo vg-campo--sel" aria-label="Filtrar por critério avaliado">
+        <option value="">Todos os critérios</option>
+      </select>
+      <select id="filtro-motivo-falha" class="vg-campo vg-campo--sel" aria-label="Filtrar por motivo de falha crítica">
+        <option value="">Todos os motivos de falha</option>
+      </select>
+      <select id="filtro-avaliado" class="vg-campo vg-campo--sel" aria-label="Filtrar por avaliação da Supervisora">
+        <option value="sim" selected>Avaliados pela Supervisora</option>
         <option value="nao">Não avaliados</option>
         <option value="todos">Todos</option>
       </select>
@@ -176,7 +182,7 @@
   <div class="vg-card vg-sem-acesso__card">
     <span class="ae-appicon" id="logo-appicon" aria-hidden="true"></span>
     <h2 class="ae-titulo-secao">Sem permissão de acesso</h2>
-    <p class="ae-apoio">Seu usuário do Bitrix24 não está vinculado a nenhum departamento habilitado no Painel Vigia.</p>
+    <p class="ae-apoio">Seu usuário do Bitrix24 não está vinculado a nenhum departamento habilitado no Painel Supervisora.</p>
     <p class="ae-apoio">Fale com a gestão da Engel Advogados para liberar Comercial ou Sucesso do Cliente.</p>
     <a class="ae-btn ae-btn--primario" id="btn-suporte-negado" href="#" target="_blank" rel="noopener">Contatar o suporte</a>
   </div>
