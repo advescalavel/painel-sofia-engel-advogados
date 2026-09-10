@@ -126,16 +126,24 @@ window.VigiaDemo = (function () {
     var avaliados = serieScore.reduce(function (a, d) { return a + d.f0_59 + d.f60_74 + d.f75_89 + d.f90_100; }, 0);
     var falhasLista = agente === 'sucesso' ? FALHAS_SC : FALHAS_COM;
     var comFalha = Math.round(avaliados * (r(9, 18) / 100));
+    // O back-end real inclui uma linha "Nenhuma" para os atendimentos sem
+    // falha crítica; reproduzimos isso aqui para exercitar o filtro no painel.
+    var semFalha = Math.max(0, avaliados - comFalha);
 
     var base = {
       demo: true,
       agente: agente,
       granularidade: b.granularidade,
       serie: serie,
+      // taxa_aprovacao_pct = % dos atendimentos avaliados em que o critério foi
+      // cumprido; quantidade_avaliada = em quantos atendimentos esse critério
+      // pôde ser avaliado (alguns não se aplicam a todo atendimento).
       criterios: (agente === 'sucesso' ? CRITERIOS_SC : CRITERIOS_COM).map(function (c) {
-        return { criterio: c, media: r(62, 94) };
+        return { criterio: c, taxa_aprovacao_pct: r(62, 94), quantidade_avaliada: Math.round(avaliados * (r(70, 100) / 100)) };
       }),
-      falha_critica: distribuir(falhasLista, comFalha, r, 'motivo', 'quantidade'),
+      falha_critica: distribuir(falhasLista, comFalha, r, 'motivo', 'quantidade').concat(
+        semFalha ? [{ motivo: 'Nenhuma', quantidade: semFalha }] : []
+      ),
       distribuicao_score_faixas: faixas,
       distribuicao_score_serie: serieScore,
       kpis: {
@@ -236,6 +244,10 @@ window.VigiaDemo = (function () {
       if (params.falha_ia && !a.falha_critica) return false;
       if (params.janela_2h && !a.janela_2h) return false;
       if (params.com_feedback && !(a.feedbacks && a.feedbacks.total)) return false;
+      if (params.insatisfacao && !a.insatisfacao) return false;
+      if (params.motivo_falha && a.falha_critica !== params.motivo_falha) return false;
+      if (params.tipo_atendimento && a.tipo_atendimento !== params.tipo_atendimento) return false;
+      if (params.motivo_transferencia && a.motivo_transferencia !== params.motivo_transferencia) return false;
       if (params.status && params.status !== 'todos') {
         if (params.status === 'concluido') {
           if (a.status === 'em_andamento') return false;
@@ -259,7 +271,8 @@ window.VigiaDemo = (function () {
         sem_resposta_60min: itens.filter(function (a) { return a.sem_resposta_60min; }).length,
         falha_ia: itens.filter(function (a) { return !!a.falha_critica; }).length,
         janela_2h: itens.filter(function (a) { return a.janela_2h; }).length,
-        com_feedback: itens.filter(function (a) { return a.feedbacks && a.feedbacks.total; }).length
+        com_feedback: itens.filter(function (a) { return a.feedbacks && a.feedbacks.total; }).length,
+        insatisfacao: itens.filter(function (a) { return a.insatisfacao; }).length
       },
       itens: filtrados.slice((pagina - 1) * limite, pagina * limite)
     };
