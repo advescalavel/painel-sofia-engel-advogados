@@ -739,10 +739,31 @@ function badgeStatus(status) {
 }
 
 function celulaScore(item) {
-  if (item.score_efetividade == null) return '<span class="vg-vazio-celula">—</span>';
+  if (item.sem_avaliacao_humana) return '<span class="vg-vazio-celula">Sem avaliação humana disponível</span>';
+  if (item.score_efetividade == null) {
+    return item.auditado === false
+      ? '<span class="vg-vazio-celula">Aguardando auditoria</span>'
+      : '<span class="vg-vazio-celula">—</span>';
+  }
   const v = num(item.score_efetividade);
   return `<span class="vg-score"><span class="vg-score__valor">${nf.format(v)}</span>
     <span class="vg-score__medidor"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></span></span>`;
+}
+
+// Bloco secundário exibido em "Colaboradores e IA" e "Somente IA": quando a
+// sessão também tem uma avaliação real de colaborador (Sucesso do Cliente,
+// via vw_qualidade_humana_sucesso_cliente), mostra as duas notas lado a lado
+// em vez de só a nota da Sofia. Nunca substitui a avaliação da Sofia.
+function celulaAvaliacaoColaborador(av) {
+  if (!av) return '';
+  const nome = escapeHtml(av.responsavel || 'Colaborador');
+  let corpo;
+  if (av.score_efetividade != null) {
+    corpo = `<b>${nf.format(num(av.score_efetividade))}</b> — ${av.justificativa_avaliacao ? escapeHtml(av.justificativa_avaliacao) : '<span class="vg-vazio-celula">sem justificativa</span>'}`;
+  } else {
+    corpo = av.auditado === false ? 'Aguardando auditoria' : '<span class="vg-vazio-celula">—</span>';
+  }
+  return `<div class="vg-avaliacao-colaborador"><span class="vg-avaliacao-colaborador__rotulo">Colaborador — ${nome}</span>${corpo}</div>`;
 }
 
 function celulaSinais(item) {
@@ -789,7 +810,7 @@ function renderizarTabela(dados) {
     }
     tr += `<td>${badgeStatus(item.status)}${item.motivo_transferencia ? `<span class="vg-cliente__meta">${escapeHtml(item.motivo_transferencia)}</span>` : ''}${item.motivo_desqualificacao ? `<span class="vg-cliente__meta">${escapeHtml(item.motivo_desqualificacao)}</span>` : ''}</td>
       <td class="vg-tabela__num">${celulaScore(item)}</td>
-      <td>${item.justificativa_avaliacao ? `<span class="vg-avaliacao" title="Clique para expandir">${escapeHtml(item.justificativa_avaliacao)}</span>` : '<span class="vg-vazio-celula">—</span>'}</td>
+      <td>${item.justificativa_avaliacao ? `<span class="vg-avaliacao" title="Clique para expandir">${escapeHtml(item.justificativa_avaliacao)}</span>` : (item.sem_avaliacao_humana ? '' : '<span class="vg-vazio-celula">—</span>')}${celulaAvaliacaoColaborador(item.avaliacao_colaborador)}</td>
       <td>${celulaSinais(item)}</td>`;
     if (podeDarFeedback()) tr += `<td>${celulaFeedback(item)}</td>`;
     return '<tr>' + tr + '</tr>';
