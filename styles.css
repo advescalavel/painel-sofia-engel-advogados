@@ -711,6 +711,27 @@ a.vg-cliente__nome:hover { text-decoration: underline; }
   -webkit-box-orient: vertical;
 }
 .vg-avaliacao.is-expandida { -webkit-line-clamp: unset; color: var(--ae-text); }
+
+/* Avaliação do colaborador, exibida junto da nota da Sofia quando ambas
+   existem para a mesma sessão (ver vg-avaliacao-colaborador em app.js). */
+.vg-avaliacao-colaborador {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--ae-border);
+  font-size: 12px;
+  color: var(--ae-text-soft);
+  max-width: 380px;
+}
+.vg-avaliacao-colaborador__rotulo {
+  display: block;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  color: var(--ae-magic-pink);
+  margin-bottom: 2px;
+}
+
 .vg-sinais { display: flex; gap: 4px; flex-wrap: wrap; }
 .vg-vazio-celula { color: var(--ae-text-faint); }
 
