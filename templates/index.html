@@ -111,23 +111,63 @@
         </div>
       </div>
 
-      <select id="filtro-base-data" class="vg-campo vg-campo--sel" aria-label="Base da data do período" hidden>
+      <select id="filtro-base-data" class="vg-campo vg-campo--sel" aria-label="Data de referência do período" hidden>
         <option value="criacao">Período por data de criação</option>
         <option value="conclusao">Período por data de conclusão</option>
       </select>
-      <select id="filtro-colaborador" class="vg-campo vg-campo--sel" aria-label="Filtrar por colaborador ou IA"></select>
-      <select id="filtro-status" class="vg-campo vg-campo--sel" aria-label="Filtrar por status"></select>
-      <select id="filtro-criterio" class="vg-campo vg-campo--sel" aria-label="Filtrar por critério avaliado">
-        <option value="">Todos os critérios</option>
-      </select>
-      <select id="filtro-motivo-falha" class="vg-campo vg-campo--sel" aria-label="Filtrar por motivo de falha crítica">
-        <option value="">Todos os motivos de falha</option>
-      </select>
-      <select id="filtro-avaliado" class="vg-campo vg-campo--sel" aria-label="Filtrar por avaliação da Supervisora">
-        <option value="sim" selected>Avaliados pela Supervisora</option>
-        <option value="nao">Não avaliados</option>
-        <option value="todos">Todos</option>
-      </select>
+      <select id="filtro-colaborador" class="vg-campo vg-campo--sel" aria-label="Filtrar por responsável (colaborador ou IA)"></select>
+
+      <div class="vg-filtro" id="filtro-mais-wrap">
+        <button class="vg-campo" id="btn-mais-filtros" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="mais-filtros-popup">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="4" y1="6" x2="20" y2="6"></line>
+            <line x1="7" y1="12" x2="17" y2="12"></line>
+            <line x1="10" y1="18" x2="14" y2="18"></line>
+          </svg>
+          <span class="vg-campo__valor">Mais filtros</span>
+          <span class="vg-contador" id="mais-filtros-contador" hidden></span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+
+        <div class="vg-popover vg-popover--filtros" id="mais-filtros-popup" hidden role="dialog" aria-label="Mais filtros">
+          <label class="vg-campo-rotulado">
+            <span class="ae-rotulo">Status</span>
+            <select id="filtro-status" class="vg-campo vg-campo--sel" aria-label="Filtrar por status"></select>
+          </label>
+          <label class="vg-campo-rotulado">
+            <span class="ae-rotulo">Critério</span>
+            <select id="filtro-criterio" class="vg-campo vg-campo--sel" aria-label="Filtrar por critério avaliado">
+              <option value="">Todos os critérios</option>
+            </select>
+          </label>
+          <label class="vg-campo-rotulado">
+            <span class="ae-rotulo">Motivo de falha</span>
+            <select id="filtro-motivo-falha" class="vg-campo vg-campo--sel" aria-label="Filtrar por motivo de falha crítica">
+              <option value="">Todos os motivos de falha</option>
+            </select>
+          </label>
+          <label class="vg-campo-rotulado">
+            <span class="ae-rotulo">Avaliado pela Supervisora</span>
+            <select id="filtro-avaliado" class="vg-campo vg-campo--sel" aria-label="Filtrar por avaliação da Supervisora">
+              <option value="sim" selected>Avaliados pela Supervisora</option>
+              <option value="nao">Não avaliados</option>
+              <option value="todos">Todos</option>
+            </select>
+          </label>
+          <label class="vg-campo-rotulado" id="filtro-componente-wrap" hidden>
+            <span class="ae-rotulo">Componente avaliado</span>
+            <select id="filtro-componente" class="vg-campo vg-campo--sel" aria-label="Filtrar por componente avaliado">
+              <option value="ambos" selected>IA e humano (ambos)</option>
+              <option value="ia">Somente IA</option>
+              <option value="humano">Somente humano</option>
+            </select>
+          </label>
+          <div class="vg-popover__rodape">
+            <span class="vg-card__apoio">Cada alteração é aplicada na hora, em todas as abas.</span>
+            <button class="ae-btn" id="btn-mais-filtros-fechar" type="button">Fechar</button>
+          </div>
+        </div>
+      </div>
 
       <div class="vg-filtros__resumo" id="filtros-resumo"></div>
     </div>
