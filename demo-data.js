@@ -217,6 +217,16 @@ window.VigiaDemo = (function () {
     return lista(CRITERIOS_SC, 'ia').concat(lista(CRITERIOS_HUMANO, 'humano'));
   }
 
+  // atendido: true | false | null (não se aplica — excluído do cálculo).
+  function criteriosDoItem(nomes, r, forcarFalha) {
+    var lista = nomes.map(function (c, i) {
+      var sorteio = r(0, 100);
+      return { criterio: c, atendido: sorteio < 8 && i > 0 ? null : sorteio < 80 };
+    });
+    if (forcarFalha && !lista.some(function (c) { return c.atendido === false; })) lista[r(0, lista.length - 1)].atendido = false;
+    return lista;
+  }
+
   function atendimentos(agente, params) {
     var r = rng(agente + '|lista');
     var isSC = agente === 'sucesso';
@@ -250,6 +260,9 @@ window.VigiaDemo = (function () {
           : 'Atendimento dentro do padrão: coleta completa, tom adequado e encaminhamento correto.'
       };
 
+      // Critérios avaliados pela Supervisora neste atendimento (IA).
+      item.criterios = criteriosDoItem(isSC ? CRITERIOS_SC : CRITERIOS_COM, r, temFalha);
+
       if (isSC) {
         var concluido = r(0, 100) < 82;
         if (concluido) {
@@ -263,6 +276,18 @@ window.VigiaDemo = (function () {
           : (resolvido ? 'resolvido' : (r(0, 100) < 40 ? 'transferido_sem_atendimento' : 'transferido'));
         item.motivo_transferencia = resolvido ? null : MOTIVOS_TRANSF[r(0, 5)];
         item.insatisfacao = r(0, 100) < 11;
+        // Avaliação do colaborador (auditoria humana) quando houve humano.
+        if (!ehIa || item.status === 'transferido') {
+          var colab = COLABS_SC[i % 3];
+          var critsHumano = criteriosDoItem(CRITERIOS_HUMANO, r, false);
+          var notaColab = Math.round(100 * critsHumano.filter(function (c) { return c.atendido; }).length / critsHumano.filter(function (c) { return c.atendido !== null; }).length || 0);
+          item.avaliacao_colaborador = {
+            responsavel: colab,
+            score_efetividade: notaColab,
+            justificativa_avaliacao: notaColab >= 70 ? 'Retorno no prazo e demanda resolvida.' : 'Demorou a responder e não registrou o encaminhamento.',
+            criterios: critsHumano
+          };
+        }
         item.feedbacks = {
           total: nFb,
           ultimo: nFb ? { autor: 'Laila Oliveira', criado_em: d.toISOString(), texto: 'Confirmar com a Mell se o cliente recebeu retorno depois da transferência.' } : null
