@@ -991,3 +991,252 @@ button.vg-kpi:hover { border-color: var(--ae-border-strong); }
 .vg-sem-acesso__card .ae-appicon { margin: 0 auto 16px; }
 .vg-sem-acesso__card .ae-apoio { margin: 8px 0 0; }
 .vg-sem-acesso__card .ae-btn { margin-top: 20px; }
+
+/* =========================================================================
+   9. Visão geral executiva — Sucesso do Cliente
+   Resultado → Qualidade → Diagnóstico → Risco → Ação. Só tokens --ae-* e
+   hexadecimais que já existem na paleta das seções 0 e 8.
+   ========================================================================= */
+
+/* Faixas gerenciais da nota (Crítico, Regular, Bom, Excelente). */
+:root,
+[data-tema="claro"] {
+  --vg-faixa-critico: #FF038F;
+  --vg-faixa-regular: #FF8AD0;
+  --vg-faixa-bom: #8A83CC;
+  --vg-faixa-excelente: #2B2B6E;
+}
+[data-tema="escuro"] {
+  --vg-faixa-critico: #FF2E9E;
+  --vg-faixa-regular: #FF8AD0;
+  --vg-faixa-bom: #6C63E0;
+  --vg-faixa-excelente: #B4ADFF;
+}
+
+/* --- Filtros: principais na barra, secundários em "Mais filtros" -------- */
+.vg-contador {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--ae-radius-pill);
+  background: var(--ae-magic-pink);
+  color: #FFFFFF;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.vg-popover--filtros {
+  width: min(320px, calc(100vw - 40px));
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.vg-campo-rotulado { display: flex; flex-direction: column; gap: 5px; }
+.vg-campo-rotulado .ae-rotulo { margin: 0; }
+.vg-campo-rotulado .vg-campo { width: 100%; }
+
+/* --- KPIs agrupados: "No período" x "Agora" ---------------------------- */
+.vg-kpis.vg-kpis--agrupado {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 290px);
+  gap: 14px;
+  margin-bottom: 22px;
+}
+@media (max-width: 1100px) { .vg-kpis.vg-kpis--agrupado { grid-template-columns: 1fr; } }
+.vg-kpi-grupo { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.vg-kpi-grupo__topo { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.vg-kpi-grupo__rotulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ae-text);
+}
+.vg-kpi-grupo__ref { font-size: 12px; color: var(--ae-text-faint); }
+.vg-kpi-grupo__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 12px;
+  flex: 1;
+}
+@media (max-width: 700px) { .vg-kpi-grupo__cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.vg-kpi-grupo__cards > .vg-kpi { height: 100%; }
+.vg-kpi__unidade { font-size: 13px; font-weight: 500; color: var(--ae-text-faint); margin-left: 2px; letter-spacing: 0; }
+
+.vg-pulso {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--ae-magic-pink);
+  box-shadow: 0 0 0 0 var(--ae-pink-soft);
+  animation: vg-pulso 1.8s ease-out infinite;
+}
+@keyframes vg-pulso {
+  0% { box-shadow: 0 0 0 0 var(--ae-pink-line); }
+  100% { box-shadow: 0 0 0 7px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .vg-pulso { animation: none; } }
+
+.vg-kpi--agora {
+  flex: 1;
+  border-color: var(--ae-pink-line);
+  background: linear-gradient(180deg, var(--ae-pink-soft), var(--ae-surface) 70%);
+}
+.vg-agora__linhas { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
+.vg-agora__linha {
+  appearance: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border: 0;
+  border-radius: var(--ae-radius-sm);
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ae-text-soft);
+  cursor: pointer;
+  text-align: left;
+}
+.vg-agora__linha b { color: var(--ae-text); font-variant-numeric: tabular-nums; font-weight: 600; }
+.vg-agora__linha:hover, .vg-agora__linha:focus-visible { background: var(--ae-surface-2); color: var(--ae-text); outline: none; }
+.vg-link {
+  appearance: none;
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin-top: 8px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ae-pink-ink);
+  cursor: pointer;
+}
+.vg-link:hover { text-decoration: underline; }
+
+/* --- Blocos da Visão geral --------------------------------------------- */
+.vg-graficos.vg-graficos--blocos { display: flex; flex-direction: column; gap: 26px; }
+.vg-bloco { scroll-margin-top: 200px; }
+.vg-bloco__cabecalho { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 10px; }
+.vg-bloco__titulo {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ae-text);
+}
+.vg-bloco__titulo::before {
+  content: "";
+  display: inline-block;
+  width: 14px; height: 2px;
+  margin-right: 8px;
+  vertical-align: middle;
+  border-radius: 2px;
+  background: var(--ae-magic-pink);
+}
+.vg-bloco__apoio { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--ae-text-faint); }
+
+/* Riscos operacionais: painel destacado, separado do histórico de qualidade. */
+.vg-bloco--risco {
+  padding: 14px 14px 16px;
+  border: 1px solid var(--ae-pink-line);
+  border-left-width: 3px;
+  border-radius: var(--ae-radius);
+  background: var(--ae-pink-soft);
+}
+.vg-bloco--risco .vg-bloco__titulo { color: var(--ae-pink-ink); }
+
+/* --- Legenda clicável (drill por faixa) -------------------------------- */
+.vg-legenda__item--clicavel {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  padding: 3px 7px;
+  margin: -3px -7px;
+  border-radius: var(--ae-radius-pill);
+  cursor: pointer;
+}
+.vg-legenda__item--clicavel:hover, .vg-legenda__item--clicavel:focus-visible {
+  border-color: var(--ae-border-strong);
+  background: var(--ae-surface-2);
+  outline: none;
+}
+.vg-legenda__pct { color: var(--ae-text-faint); font-variant-numeric: tabular-nums; }
+.vg-legenda__cor--tracejada {
+  height: 0 !important;
+  width: 14px !important;
+  border-top: 2px dashed currentColor;
+  background: transparent !important;
+  border-radius: 0;
+}
+
+/* --- Gráfico de linha -------------------------------------------------- */
+.vg-linha__svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.vg-linha__pontos { position: absolute; inset: 0; pointer-events: none; }
+.vg-linha__ponto {
+  position: absolute;
+  width: 7px; height: 7px;
+  margin: 0 0 -3.5px -3.5px;
+  border-radius: 50%;
+  background: var(--cor);
+  border: 1.5px solid var(--ae-surface);
+}
+.vg-linha__ponto--leve { width: 5px; height: 5px; margin: 0 0 -2.5px -2.5px; border-width: 1px; }
+.vg-linha__alvos { position: absolute; inset: 0; display: flex; }
+.vg-linha__alvo { flex: 1 1 0; height: 100%; }
+.vg-linha__alvo:hover {
+  background: linear-gradient(var(--ae-border-strong), var(--ae-border-strong)) center / 1px 100% no-repeat;
+}
+.vg-linha__x { position: relative; height: 16px; margin: 7px 0 0 44px; }
+.vg-linha__xlab {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 10.5px;
+  color: var(--ae-text-faint);
+  white-space: nowrap;
+}
+.vg-tip__total--lista { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; }
+.vg-tip__total--lista span { color: var(--ae-text-soft); }
+
+/* --- Onde agir --------------------------------------------------------- */
+.vg-acoes-lista { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
+@media (max-width: 900px) { .vg-acoes-lista { grid-template-columns: 1fr; } }
+.vg-acao {
+  appearance: none;
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ae-border);
+  border-radius: var(--ae-radius-sm);
+  background: var(--ae-surface);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.vg-acao:hover, .vg-acao:focus-visible { border-color: var(--ae-border-strong); background: var(--ae-surface-2); outline: none; }
+.vg-acao__marca { width: 8px; height: 8px; border-radius: 50%; background: var(--ae-serie-3); }
+.vg-acao--alto .vg-acao__marca { background: var(--ae-magic-pink); }
+.vg-acao__texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vg-acao__texto b { font-size: 13px; font-weight: 600; color: var(--ae-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vg-acao__texto span { font-size: 11.5px; color: var(--ae-text-faint); }
+.vg-acao__ir { font-size: 11.5px; font-weight: 600; color: var(--ae-pink-ink); white-space: nowrap; }
+@media (max-width: 520px) { .vg-acao__ir { display: none; } }
+/* Rótulos mais largos nas barras da Visão geral (critérios e motivos longos). */
+.vg-bloco .vg-barras__linha { grid-template-columns: minmax(110px, 210px) 1fr auto; }
+@media (max-width: 520px) { .vg-bloco .vg-barras__linha { grid-template-columns: 1fr auto; } }
+/* Período com 1 a 3 buckets (ex.: "Hoje"): pontos maiores, já que quase não há linha. */
+.vg-linha__area--poucos .vg-linha__ponto { width: 12px; height: 12px; margin: 0 0 -6px -6px; border-width: 2px; }
+.vg-linha__area--poucos .vg-linha__ponto--leve { width: 9px; height: 9px; margin: 0 0 -4.5px -4.5px; }
