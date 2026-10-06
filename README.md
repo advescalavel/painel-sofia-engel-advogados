@@ -30,7 +30,9 @@ instalação e acessos).
 Departamento (só os permitidos)  →  Comercial          |  Sucesso do Cliente
 IA supervisora                   →  SDR · Fechamento   |  Sucesso do Cliente
 Abas                             →  Visão geral · Qualidade da IA · Atendimentos
-Filtros (globais)                →  Período · Colaborador/IA · Status
+Filtros principais (globais)     →  Período · Data de referência · Responsável (colaborador/IA)
+Mais filtros (globais)           →  Status · Critério · Motivo de falha · Avaliado pela Supervisora
+                                    · Componente avaliado (só Sucesso do Cliente)
 ```
 
 Cada IA tem a sua Visão geral:
@@ -43,17 +45,33 @@ Cada IA tem a sua Visão geral:
   depois qualificações e atendimentos; série fechados x qualificados sem
   contrato, funil atendimento → qualificação → contrato, composição,
   objeções, motivos de desqualificação.
-- **Sucesso do Cliente** — atendimentos, taxa de resolução, transferidos e não
-  atendidos, clientes insatisfeitos, falhas da IA; série resolvidos x
-  transferidos, composição, tipos de atendimento (andamento processual,
-  dúvidas gerais, golpe do falso advogado), motivos de transferência.
+- **Sucesso do Cliente** — resumo executivo na sequência
+  Resultado → Qualidade → Diagnóstico → Risco → Ação:
+  - KPIs separados em **No período** (atendimentos, taxa de resolução,
+    atendimentos críticos, falhas críticas da IA, clientes insatisfeitos) e **Agora** (riscos operacionais ativos: janela de 24h
+    encerrando + sem resposta há +1h);
+  - **Evolução da taxa de resolução** (linha): nota média por desfecho —
+    resolvidos pela IA, transferidos, iniciados e atendidos por humano — com a
+    taxa de resolução tracejada; volumes no tooltip;
+  - **Qualidade**: distribuição dos atendimentos por faixa (Crítico 0–49,
+    Regular 50–69, Bom 70–84, Excelente 85–100), desempenho por critério (pior
+    primeiro, dinâmico pelo componente avaliado) e motivos de falha crítica;
+  - **Diagnóstico**: efetividade por tipo de atendimento (ou volume por tipo,
+    enquanto `nota_media` não vier) e motivos de transferência;
+  - **Riscos operacionais** (painel destacado): alertas por tipo e evolução
+    dos alertas;
+  - **Onde agir**: pontos de atenção derivados dos dados da tela.
+  A composição das resoluções e a série em barras resolvidos x transferidos
+  saíram da aba — os volumes seguem nos KPIs e no tooltip da linha.
 
 A aba **Qualidade da IA** é a mesma das três: efetividade média, avaliados,
 falha crítica, distribuição do score por faixa ao longo do tempo, critérios
 avaliados e motivos de falha crítica.
 
 Os KPIs de alerta (janela ≤2h, sem resposta > 1h, falhas da IA) são clicáveis e
-abrem a aba Atendimentos já filtrada pelo sinal.
+abrem a aba Atendimentos já filtrada pelo sinal. Na Visão geral de Sucesso do
+Cliente todo KPI, faixa de nota, critério, motivo, tipo de alerta e ponto de
+atenção faz o mesmo (`irParaAtendimentos`), com o filtro visível em pílula.
 
 ## Controle de acesso (precisa ser fechado no back-end)
 
@@ -129,12 +147,39 @@ andamento" some do filtro.
 `janela_2h_agora` e `sem_resposta_60min_agora` são estados do momento, não do
 período — a interface os marca com a tag "agora".
 
+#### Extensões da Visão geral de Sucesso do Cliente (opcionais)
+
+Query nova: `componente` (`ambos` | `ia` | `humano`) — quais avaliações entram
+nas notas, faixas e critérios. Enquanto o endpoint ignorar o parâmetro, o
+painel mostra o que vier hoje. Todos os campos abaixo são opcionais: sem
+eles a Visão geral cai no comportamento descrito entre parênteses.
+
+```jsonc
+{
+  "serie": [{
+    // nota média por desfecho no bucket (sem eles: só a taxa de resolução)
+    "nota_media_resolvidos": 84, "nota_media_transferidos": 71, "nota_media_humano": 78,
+    "atendidos_humano": 3,   // iniciados e atendidos por humano (peso da média)
+    // alertas disparados no bucket (sem eles: "histórico indisponível" e o
+    // gráfico por tipo usa os estados *_agora)
+    "alertas_janela_24h": 1, "alertas_sem_resposta": 2, "alertas_insatisfacao": 0
+  }],
+  // faixas gerenciais (sem ele: usa distribuicao_score_faixas/serie)
+  "distribuicao_classificacao_serie": [{ "bucket": "…", "critico": 0, "regular": 0, "bom": 0, "excelente": 0 }],
+  "kpis": { "atendimentos_criticos": 0 },   // sem ele: soma de "critico" acima
+  "criterios": [{ "criterio": "…", "componente": "ia|humano", "taxa_aprovacao_pct": 0, "quantidade_avaliada": 0 }],
+  "tipos_atendimento": [{ "tipo": "…", "quantidade": 0, "nota_media": 0 }]  // sem nota: volume por tipo
+}
+```
+
 ### `GET /painel-vigia-engel-atendimentos`
 
 Query adicional: `limite`, `pagina`, `base_data` (`criacao` | `conclusao` — em
 qual data o período se apoia; só Sucesso do Cliente) e os sinais de auditoria
 `sem_resposta_60min`, `falha_ia`, `janela_2h`, `com_feedback` — booleanos,
-combináveis entre si e com os filtros globais.
+combináveis entre si e com os filtros globais. O drill-down por faixa de nota
+envia `score_min` e `score_max` (inclusivos, 0–100); até o endpoint aplicá-los,
+o painel filtra a página carregada, no mesmo padrão do motivo de falha.
 
 ```jsonc
 {
@@ -155,6 +200,30 @@ combináveis entre si e com os filtros globais.
   }]
 }
 ```
+
+#### Critérios por atendimento (coluna Sinais)
+
+A coluna **Sinais** mostra, abaixo dos alertas, os critérios avaliados naquele
+atendimento: ✓ atendido, ✕ não atendido (em destaque) e – não se aplica
+(critério excluído do cálculo), com o placar `atendidos/aplicáveis`. Há um
+grupo para o colaborador e outro para a IA, conforme o filtro "Componente
+avaliado". Campos opcionais no item — sem eles a coluna fica como antes:
+
+```jsonc
+{
+  // critérios da IA (ou de ambos, marcando componente)
+  "criterios": [{ "criterio": "Compreensão da demanda", "atendido": true, "componente": "ia" }],
+  "avaliacao_colaborador": {
+    "responsavel": "…", "score_efetividade": 67, "justificativa_avaliacao": "…",
+    // critérios da auditoria humana
+    "criterios": [{ "criterio": "Tempo de resposta", "atendido": false, "nota": 40, "justificativa": "…" }]
+  }
+}
+```
+
+`atendido` é `true`, `false` ou `null` (não se aplica). Se vier só `nota`, o
+painel considera atendido a partir de 70. `nota` e `justificativa` aparecem
+no tooltip do critério.
 
 ### Feedbacks da Laila — histórico preservado
 
@@ -185,3 +254,7 @@ idêntico ao contrato acima — trocar por dados reais não muda o `app.js`.
   `fechamentos` de `qualificacoes`).
 - Confirmar se o filtro Colaborador/IA deve listar pessoas nominalmente ou
   seguir com origem (IA x colaboradores), como está.
+- Visão geral de Sucesso do Cliente: publicar no endpoint de métricas o
+  parâmetro `componente` e os campos opcionais da seção "Extensões"; no de
+  atendimentos, `componente`, `score_min` e `score_max`, além de `criterios`
+  e `avaliacao_colaborador.criterios` em cada item.
