@@ -57,6 +57,9 @@ window.VigiaDemo = (function () {
   var FALHAS_SC = ['Informação inventada', 'Informação incorreta', 'Ignorou pedido humano', 'Cliente corrigiu a IA', 'Expectativa incorreta', 'Repetição sem evolução'];
   var CRITERIOS_COM = ['Coleta de requisitos', 'Aderência ao roteiro', 'Tratamento de objeção', 'Encaminhamento'];
   var CRITERIOS_SC = ['Compreensão da demanda', 'Precisão da resposta', 'Esforço do cliente', 'Encaminhamento'];
+  // Critérios da auditoria humana (colaboradores de Sucesso do Cliente) —
+  // nomes ilustrativos, só para exercitar o filtro "Componente avaliado".
+  var CRITERIOS_HUMANO = ['Tempo de resposta', 'Clareza e cordialidade', 'Resolução da demanda', 'Registro e encaminhamento'];
   var NOMES = ['Ana Beatriz Moraes', 'Carlos Eduardo Lima', 'Fernanda Ribeiro', 'Marcos Vinícius Alves', 'Juliana Prado', 'Rafael Antunes', 'Patrícia Nogueira', 'Diego Camargo', 'Larissa Bittencourt', 'Otávio Menezes', 'Simone Vasconcelos', 'Thiago Barreto', 'Camila Deodoro', 'Henrique Salles', 'Vanessa Kuhn', 'Rodrigo Peixoto', 'Bianca Almeida', 'Leandro Furtado', 'Mariana Bastos', 'Gustavo Pinheiro', 'Renata Sampaio', 'Felipe Andrade'];
   var COLABS_COM = ['Bruno Tavares', 'Cíntia Rocha', 'Eduardo Prado'];
   var COLABS_SC = ['Laila Oliveira', 'Mell Ferreira', 'Paula Ventura'];
@@ -78,9 +81,10 @@ window.VigiaDemo = (function () {
     }).sort(function (a, b) { return b[campoValor] - a[campoValor]; });
   }
 
-  function metricas(agente, periodos) {
+  function metricas(agente, periodos, opcoes) {
+    var componente = (opcoes && opcoes.componente) || 'ambos';
     var b = buckets(periodos);
-    var r = rng(agente + '|' + b.chaves.join(''));
+    var r = rng(agente + '|' + componente + '|' + b.chaves.join(''));
 
     var serie = b.chaves.map(function (chave) {
       var atend = r(5, 14) * b.escala;
@@ -88,7 +92,18 @@ window.VigiaDemo = (function () {
       var desq = Math.max(0, atend - qual - r(0, 2));
       var fech = Math.round(qual * (r(22, 46) / 100));
       var resolvidos = Math.round(atend * (r(62, 88) / 100));
+      var humanos = Math.round(atend * (r(10, 26) / 100));
+      var temIa = componente !== 'humano';
+      var temHumano = componente !== 'ia';
       return {
+        // Sucesso do Cliente — nota média por desfecho e alertas por bucket.
+        atendidos_humano: humanos,
+        nota_media_resolvidos: agente === 'sucesso' && temIa ? r(76, 94) : null,
+        nota_media_transferidos: agente === 'sucesso' && temIa ? r(58, 82) : null,
+        nota_media_humano: agente === 'sucesso' && temHumano && humanos ? r(64, 90) : null,
+        alertas_janela_24h: r(0, 3) * (b.escala > 2 ? 3 : 1),
+        alertas_sem_resposta: r(0, 5) * (b.escala > 2 ? 3 : 1),
+        alertas_insatisfacao: r(0, 2) * (b.escala > 2 ? 3 : 1),
         bucket: chave,
         atendimentos: atend,
         qualificados: qual,
@@ -138,9 +153,7 @@ window.VigiaDemo = (function () {
       // taxa_aprovacao_pct = % dos atendimentos avaliados em que o critério foi
       // cumprido; quantidade_avaliada = em quantos atendimentos esse critério
       // pôde ser avaliado (alguns não se aplicam a todo atendimento).
-      criterios: (agente === 'sucesso' ? CRITERIOS_SC : CRITERIOS_COM).map(function (c) {
-        return { criterio: c, taxa_aprovacao_pct: r(62, 94), quantidade_avaliada: Math.round(avaliados * (r(70, 100) / 100)) };
-      }),
+      criterios: criteriosDemo(agente, componente, r, avaliados),
       falha_critica: distribuir(falhasLista, comFalha, r, 'motivo', 'quantidade').concat(
         semFalha ? [{ motivo: 'Nenhuma', quantidade: semFalha }] : []
       ),
@@ -168,6 +181,15 @@ window.VigiaDemo = (function () {
       base.kpis.taxa_fechamento_pct = pct(fechados, qualificados);
     }
     if (agente === 'sucesso') {
+      // Faixas gerenciais da classificação final (Crítico/Regular/Bom/Excelente).
+      base.distribuicao_classificacao_serie = serie.map(function (d) {
+        var total = Math.max(1, Math.round(d.atendimentos * 0.8));
+        var critico = Math.round(total * (r(3, 12) / 100));
+        var regular = Math.round(total * (r(10, 20) / 100));
+        var bom = Math.round(total * (r(28, 40) / 100));
+        return { bucket: d.bucket, critico: critico, regular: regular, bom: bom, excelente: Math.max(0, total - critico - regular - bom) };
+      });
+      base.kpis.atendimentos_criticos = base.distribuicao_classificacao_serie.reduce(function (a, d) { return a + d.critico; }, 0);
       base.kpis.resolvidos = resolvidos;
       base.kpis.taxa_resolucao_pct = pct(resolvidos, atendimentos);
       base.kpis.transferidos = transferidos;
@@ -175,9 +197,24 @@ window.VigiaDemo = (function () {
       base.kpis.clientes_insatisfeitos = r(1, 8);
       base.kpis.falhas_ia = comFalha;
       base.motivos_transferencia = distribuir(MOTIVOS_TRANSF, transferidos, r, 'motivo', 'quantidade');
-      base.tipos_atendimento = distribuir(TIPOS_ATEND, atendimentos, r, 'tipo', 'quantidade');
+      base.tipos_atendimento = distribuir(TIPOS_ATEND, atendimentos, r, 'tipo', 'quantidade').map(function (t) {
+        t.nota_media = r(58, 92);
+        return t;
+      });
     }
     return base;
+  }
+
+  function criteriosDemo(agente, componente, r, avaliados) {
+    function lista(nomes, origem) {
+      return nomes.map(function (c) {
+        return { criterio: c, componente: origem, taxa_aprovacao_pct: r(58, 95), quantidade_avaliada: Math.round(avaliados * (r(70, 100) / 100)) };
+      });
+    }
+    if (agente !== 'sucesso') return lista(CRITERIOS_COM, 'ia');
+    if (componente === 'ia') return lista(CRITERIOS_SC, 'ia');
+    if (componente === 'humano') return lista(CRITERIOS_HUMANO, 'humano');
+    return lista(CRITERIOS_SC, 'ia').concat(lista(CRITERIOS_HUMANO, 'humano'));
   }
 
   function atendimentos(agente, params) {
@@ -248,6 +285,8 @@ window.VigiaDemo = (function () {
       if (params.motivo_falha && a.falha_critica !== params.motivo_falha) return false;
       if (params.tipo_atendimento && a.tipo_atendimento !== params.tipo_atendimento) return false;
       if (params.motivo_transferencia && a.motivo_transferencia !== params.motivo_transferencia) return false;
+      if (params.score_min != null && (a.score_efetividade == null || a.score_efetividade < Number(params.score_min))) return false;
+      if (params.score_max != null && (a.score_efetividade == null || a.score_efetividade > Number(params.score_max))) return false;
       if (params.status && params.status !== 'todos') {
         if (params.status === 'concluido') {
           if (a.status === 'em_andamento') return false;
