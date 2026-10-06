@@ -664,7 +664,7 @@ button.vg-campo[aria-expanded="true"] { border-color: var(--ae-pink); }
 .vg-tabela-topo__dir { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .vg-tabela-wrap { max-height: 62vh; min-height: 220px; overflow: auto; }
 
-.vg-tabela { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 980px; }
+.vg-tabela { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 1080px; }
 .vg-tabela th:nth-child(1), .vg-tabela td:nth-child(1) { min-width: 168px; }
 .vg-tabela th:nth-child(5), .vg-tabela td:nth-child(5) { width: 82px; }
 .vg-tabela th:nth-child(6), .vg-tabela td:nth-child(6) { width: 40%; }
@@ -1065,7 +1065,6 @@ button.vg-kpi:hover { border-color: var(--ae-border-strong); }
 }
 @media (max-width: 700px) { .vg-kpi-grupo__cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .vg-kpi-grupo__cards > .vg-kpi { height: 100%; }
-.vg-kpi__unidade { font-size: 13px; font-weight: 500; color: var(--ae-text-faint); margin-left: 2px; letter-spacing: 0; }
 
 .vg-pulso {
   width: 8px; height: 8px;
@@ -1240,3 +1239,62 @@ button.vg-kpi:hover { border-color: var(--ae-border-strong); }
 /* Período com 1 a 3 buckets (ex.: "Hoje"): pontos maiores, já que quase não há linha. */
 .vg-linha__area--poucos .vg-linha__ponto { width: 12px; height: 12px; margin: 0 0 -6px -6px; border-width: 2px; }
 .vg-linha__area--poucos .vg-linha__ponto--leve { width: 9px; height: 9px; margin: 0 0 -4.5px -4.5px; }
+
+/* =========================================================================
+   10. Atendimentos — critérios atendidos x não atendidos na coluna Sinais
+   ✓ atendido (violeta), ✕ não atendido (rosa, em destaque), – não se aplica.
+   ========================================================================= */
+.vg-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.vg-sinais + .vg-crits, .vg-crits + .vg-crits { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--ae-border); }
+.vg-crits { min-width: 0; }
+.vg-crits__topo { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
+.vg-crits__titulo {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ae-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vg-crits__placar {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 7px;
+  border-radius: var(--ae-radius-pill);
+  background: var(--ae-success-soft);
+  color: var(--ae-success);
+}
+.vg-crits__placar.is-falha { background: var(--ae-danger-soft); color: var(--ae-danger); }
+.vg-crits__lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.vg-crit {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  line-height: 1.3;
+  padding: 2px 6px 2px 2px;
+  border-radius: var(--ae-radius-sm);
+}
+.vg-crit__icone {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 9.5px;
+  font-weight: 700;
+}
+.vg-crit__nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vg-crit--ok .vg-crit__icone { background: var(--ae-success-soft); color: var(--ae-success); }
+.vg-crit--ok .vg-crit__nome { color: var(--ae-text-soft); }
+.vg-crit--nao { background: var(--ae-danger-soft); }
+.vg-crit--nao .vg-crit__icone { background: var(--ae-danger); color: #FFFFFF; }
+.vg-crit--nao .vg-crit__nome { color: var(--ae-danger); font-weight: 600; }
+.vg-crit--na .vg-crit__icone { background: var(--ae-surface-2); color: var(--ae-text-faint); }
+.vg-crit--na .vg-crit__nome { color: var(--ae-text-faint); }
+/* Critério vindo do drill-down/filtro: contorno para achá-lo na linha. */
+.vg-crit.is-foco { box-shadow: inset 0 0 0 1px var(--ae-pink-line); }
+[data-tema="escuro"] .vg-crit--nao .vg-crit__icone { color: #14112A; }
