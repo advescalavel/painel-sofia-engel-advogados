@@ -87,6 +87,9 @@ const estado = {
   status: 'todos',
   avaliado: 'sim', // 'sim' | 'nao' | 'todos' - só afeta a aba Atendimentos
   baseData: 'criacao',
+  // Componente avaliado (só Sucesso do Cliente): 'ambos' | 'ia' | 'humano'.
+  // Define quais notas e critérios a Supervisora devolve nas métricas.
+  componente: 'ambos',
   periodos: [],
   periodoRotulo: 'Hoje',
   periodoPreset: 'hoje',
@@ -97,6 +100,8 @@ const estado = {
   filtroCriterio: null,
   filtroTipoAtendimento: null,
   filtroMotivoTransferencia: null,
+  // Faixa de nota vinda do drill-down da Visão geral: { rotulo, min, max }.
+  filtroFaixa: null,
   pagina: 1,
   limite: 25,
   dados: null,
@@ -160,9 +165,14 @@ function formatarBucket(bucket, granularidade) {
   return p[2] + '/' + p[1];
 }
 
-function agruparSeriePorDia(dados) {
+// camposMedia (opcional): campos que são médias (ex.: nota média) e por isso
+// não podem ser somados quando dois buckets caem no mesmo dia — viram a média
+// simples dos valores não nulos. Sem o parâmetro o comportamento é o de antes.
+function agruparSeriePorDia(dados, camposMedia) {
   const mapa = new Map();
   const ordem = [];
+  const medias = camposMedia || [];
+  const contagem = new Map();
   dados.forEach(d => {
     const data = new Date(d.bucket);
     const chave = isNaN(data)
@@ -172,11 +182,21 @@ function agruparSeriePorDia(dados) {
       const copia = Object.assign({}, d, { bucket: chave });
       mapa.set(chave, copia);
       ordem.push(chave);
+      const cont = {};
+      medias.forEach(k => { cont[k] = typeof d[k] === 'number' ? 1 : 0; });
+      contagem.set(chave, cont);
     } else {
       const alvo = mapa.get(chave);
+      const cont = contagem.get(chave);
       Object.keys(d).forEach(k => {
         if (k === 'bucket') return;
-        if (typeof d[k] === 'number') alvo[k] = num(alvo[k]) + d[k];
+        if (typeof d[k] !== 'number') return;
+        if (medias.indexOf(k) !== -1) {
+          alvo[k] = (num(alvo[k]) * cont[k] + d[k]) / (cont[k] + 1);
+          cont[k] += 1;
+        } else {
+          alvo[k] = num(alvo[k]) + d[k];
+        }
       });
     }
   });
@@ -252,14 +272,19 @@ function skeletonGraficos(q) {
 }
 function pintarCarregandoMetricas() {
   const secao = estado.secao === 'qualidade' ? 'qualidade' : 'visao';
-  $('kpis-' + secao).innerHTML = skeletonKpis(secao === 'visao' ? 5 : 3);
+  if (secao === 'visao') { $('kpis-visao').className = 'vg-kpis'; $('graficos-visao').className = 'vg-graficos'; }
+  $('kpis-' + secao).innerHTML = skeletonKpis(secao === 'visao' ? (estado.agente === 'sucesso' ? 7 : 5) : 3);
   $('graficos-' + secao).innerHTML = skeletonGraficos(3);
 }
 
 // =============================================================================
 // KPI
 // =============================================================================
-function cardKpi({ rotulo, valor, apoio, tag, alerta, medidorPct, sinal, status }) {
+// drill (opcional): objeto de filtros aplicado ao abrir a aba Atendimentos —
+// mesmo formato aceito por irParaAtendimentos.
+function drillAttr(patch) { return `data-drill="${escapeHtml(JSON.stringify(patch || {}))}"`; }
+
+function cardKpi({ rotulo, valor, apoio, tag, alerta, medidorPct, sinal, status, drill }) {
   const tagEl = tag ? `<span class="vg-kpi__tag">${escapeHtml(tag)}</span>` : '';
   const medidor = medidorPct != null ? `<span class="vg-kpi__medidor"><i style="width:${Math.max(0, Math.min(100, medidorPct))}%"></i></span>` : '';
   const apoioEl = apoio ? `<span class="vg-kpi__apoio">${escapeHtml(apoio)}</span>` : '';
@@ -268,8 +293,8 @@ function cardKpi({ rotulo, valor, apoio, tag, alerta, medidorPct, sinal, status 
     </div>
     <span class="vg-kpi__valor">${valor}</span>${medidor}${apoioEl}`;
 
-  if (sinal || status) {
-    const atributo = sinal ? `data-sinal="${sinal}"` : `data-status="${status}"`;
+  if (sinal || status || drill) {
+    const atributo = sinal ? `data-sinal="${sinal}"` : (status ? `data-status="${status}"` : drillAttr(drill));
     return `<button class="vg-kpi${alerta ? ' vg-kpi--alerta' : ''}" type="button" ${atributo}>
       ${miolo}<span class="vg-kpi__ir">ver atendimentos →</span></button>`;
   }
@@ -297,6 +322,7 @@ function graficoBarras(container, dados, series, granularidade, opcoes) {
 
   if (granularidade !== 'mes' && dados && dados.length) dados = agruparSeriePorDia(dados);
   const totais = dados ? dados.map(d => series.reduce((acc, s) => acc + num(d[s.chave]), 0)) : [];
+  // legendaPct / aoClicarSerie: opcionais, usados na distribuição por faixa.
   const somaTotal = totais.reduce((a, b) => a + b, 0);
 
   if (!dados || !dados.length || somaTotal === 0) {
@@ -308,9 +334,13 @@ function graficoBarras(container, dados, series, granularidade, opcoes) {
 
   const { ticks, topo } = ticksEixo(Math.max(...totais, 1));
 
-  const legenda = series.map(s => {
+  const legenda = series.map((s, i) => {
     const soma = dados.reduce((acc, d) => acc + num(d[s.chave]), 0);
-    return `<span class="vg-legenda__item"><span class="vg-legenda__cor" style="background:${s.cor}"></span>${escapeHtml(s.rotulo)} <b>${nf.format(soma)}</b></span>`;
+    const part = cfg.legendaPct ? ` <span class="vg-legenda__pct">${nf1.format(pct(soma, somaTotal))}%</span>` : '';
+    const miolo = `<span class="vg-legenda__cor" style="background:${s.cor}"></span>${escapeHtml(s.rotulo)} <b>${nf.format(soma)}</b>${part}`;
+    return cfg.aoClicarSerie
+      ? `<button class="vg-legenda__item vg-legenda__item--clicavel" type="button" data-s="${i}" title="Ver atendimentos de ${escapeHtml(s.rotulo)}">${miolo}</button>`
+      : `<span class="vg-legenda__item">${miolo}</span>`;
   }).join('') + (cfg.taxaRotulo ? `<span class="vg-legenda__item">${escapeHtml(cfg.taxaRotulo)} <b>${nf1.format(cfg.taxaValor)}%</b></span>` : '');
 
   const linhas = ticks.map(v => `<div class="vg-plot__linha${v === 0 ? ' vg-plot__linha--base' : ''}" style="bottom:${pct(v, topo)}%">
@@ -351,6 +381,12 @@ function graficoBarras(container, dados, series, granularidade, opcoes) {
     trilha.addEventListener('mousemove', posicionarTip);
     trilha.addEventListener('mouseleave', esconderTip);
   });
+
+  if (cfg.aoClicarSerie) {
+    el.querySelectorAll('.vg-legenda__item--clicavel').forEach(botao => {
+      botao.addEventListener('click', () => cfg.aoClicarSerie(series[Number(botao.dataset.s)]));
+    });
+  }
 }
 
 function graficoComposicao(container, partes, opcoes) {
@@ -392,16 +428,28 @@ function graficoBarrasH(container, dados, campoRotulo, campoValor, opcoes) {
   if (!el) return;
   const card = el.closest('.vg-card');
   const cfg = opcoes || {};
+  // Opcionais: ignorarNulos (descarta itens sem valor), ordemCrescente (pior
+  // primeiro, para diagnóstico), max (escala fixa, ex.: 100 para notas),
+  // corPorValor (cor por item) e mensagemVazio ([título, texto] em vez de
+  // ocultar o card quando não há dado).
+  if (cfg.ignorarNulos && dados) dados = dados.filter(d => d[campoValor] != null && d[campoValor] !== '');
   const soma = dados ? dados.reduce((acc, d) => acc + num(d[campoValor]), 0) : 0;
   if (!dados || !dados.length || soma === 0) {
+    if (cfg.mensagemVazio) {
+      if (card) card.hidden = false;
+      el.innerHTML = blocoVazio(cfg.mensagemVazio[0], cfg.mensagemVazio[1]);
+      return;
+    }
     if (card) card.hidden = true;
     el.innerHTML = '';
     return;
   }
   if (card) card.hidden = false;
 
-  const itens = dados.slice().sort((a, b) => num(b[campoValor]) - num(a[campoValor]));
-  const max = Math.max(...itens.map(d => num(d[campoValor])), 1);
+  const itens = dados.slice().sort((a, b) => cfg.ordemCrescente
+    ? num(a[campoValor]) - num(b[campoValor])
+    : num(b[campoValor]) - num(a[campoValor]));
+  const max = cfg.max || Math.max(...itens.map(d => num(d[campoValor])), 1);
   el.innerHTML = '<div class="vg-barras">' + itens.map(d => {
     const valor = num(d[campoValor]);
     const rotulo = String(d[campoRotulo] == null ? '—' : d[campoRotulo]);
@@ -410,7 +458,7 @@ function graficoBarrasH(container, dados, campoRotulo, campoValor, opcoes) {
       : ` <span class="vg-comp__pct">${nf1.format(pct(valor, soma))}%</span>`;
     return `<div class="vg-barras__linha${cfg.aoClicarItem ? ' vg-barras__linha--clicavel' : ''}"${cfg.aoClicarItem ? ' role="button" tabindex="0"' : ''}>
       <span class="vg-barras__rotulo" title="${escapeHtml(rotulo)}">${escapeHtml(rotulo)}</span>
-      <span class="vg-barras__trilha"><i class="vg-barras__preenchido" style="width:${pct(valor, max)}%;${cfg.cor ? 'background:' + cfg.cor : ''}"></i></span>
+      <span class="vg-barras__trilha"><i class="vg-barras__preenchido" style="width:${Math.min(100, pct(valor, max))}%;${(cfg.corPorValor ? cfg.corPorValor(valor, d) : cfg.cor) ? 'background:' + (cfg.corPorValor ? cfg.corPorValor(valor, d) : cfg.cor) : ''}"></i></span>
       <span class="vg-barras__valor">${cfg.formatador ? cfg.formatador(valor) : nf.format(valor)}${parte}</span>
     </div>`;
   }).join('') + '</div>';
@@ -421,6 +469,118 @@ function graficoBarrasH(container, dados, campoRotulo, campoValor, opcoes) {
       linha.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cfg.aoClicarItem(itens[i]); } });
     });
   }
+}
+
+// Linha multissérie — mesmo vocabulário visual de vg-plot (eixo, grade,
+// tooltip). Valores nulos quebram a linha em vez de cair para zero, para não
+// inventar queda onde só falta dado. Opções: max (100 = escala fixa de nota ou
+// percentual), altura, camposMedia (ver agruparSeriePorDia), extrasTip(d) →
+// [[rótulo, valor]] e mensagemVazio ([título, texto]) quando nenhuma série tem
+// valor. Por série: chave ou valor(d), rotulo, cor, tracejada, formato
+// ('nota' | 'pct' | 'int'), agregado (número para a legenda) ou peso (campo
+// usado como peso da média da legenda) ou somar (legenda com a soma).
+function graficoLinha(container, dados, series, granularidade, opcoes) {
+  const el = typeof container === 'string' ? $(container) : container;
+  if (!el) return;
+  const card = el.closest('.vg-card');
+  const cfg = opcoes || {};
+
+  if (granularidade !== 'mes' && dados && dados.length) dados = agruparSeriePorDia(dados, cfg.camposMedia);
+  dados = dados || [];
+  const valorDe = (s, d) => {
+    const v = s.valor ? s.valor(d) : d[s.chave];
+    return (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);
+  };
+  const matriz = series.map(s => dados.map(d => valorDe(s, d)));
+  const temValor = matriz.some(l => l.some(v => v !== null));
+
+  if (!dados.length || !temValor) {
+    if (cfg.mensagemVazio) {
+      if (card) card.hidden = false;
+      el.innerHTML = blocoVazio(cfg.mensagemVazio[0], cfg.mensagemVazio[1]);
+    } else {
+      if (card) card.hidden = true;
+      el.innerHTML = '';
+    }
+    return;
+  }
+  if (card) card.hidden = false;
+
+  const valores = [].concat(...matriz).filter(v => v !== null);
+  const { ticks, topo } = cfg.max ? { ticks: [0, 25, 50, 75, 100], topo: 100 } : ticksEixo(Math.max(1, ...valores));
+  const n = dados.length;
+  const xPct = (i) => ((i + 0.5) / n) * 100;
+  const yPct = (v) => Math.max(0, Math.min(100, pct(v, topo)));
+  const formatar = (s, v) => {
+    if (v === null) return '—';
+    if (s.formato === 'pct') return nf1.format(v) + '%';
+    return nf.format(Math.round(v));
+  };
+  const agregado = (s, i) => {
+    if (s.agregado != null) return s.agregado;
+    const lista = matriz[i];
+    if (s.somar) return lista.reduce((a, v) => a + (v || 0), 0);
+    let somaP = 0, somaV = 0;
+    lista.forEach((v, j) => {
+      if (v === null) return;
+      const w = s.peso ? num(dados[j][s.peso]) : 1;
+      somaP += w; somaV += v * w;
+    });
+    return somaP ? somaV / somaP : null;
+  };
+
+  const legenda = series.map((s, i) => {
+    const ag = agregado(s, i);
+    return `<span class="vg-legenda__item"><span class="vg-legenda__cor${s.tracejada ? ' vg-legenda__cor--tracejada' : ''}" style="background:${s.cor};color:${s.cor}"></span>${escapeHtml(s.rotulo)}${ag !== null ? ` <b>${formatar(s, ag)}</b>` : ''}</span>`;
+  }).join('');
+
+  const linhasGrade = ticks.map(v => `<div class="vg-plot__linha${v === 0 ? ' vg-plot__linha--base' : ''}" style="bottom:${pct(v, topo)}%">
+      <span class="vg-plot__tick">${nf.format(v)}</span></div>`).join('');
+
+  const caminhos = series.map((s, i) => {
+    let d = '';
+    let aberto = false;
+    matriz[i].forEach((v, j) => {
+      if (v === null) { aberto = false; return; }
+      const x = (xPct(j) * 10).toFixed(2);
+      const y = (1000 - yPct(v) * 10).toFixed(2);
+      d += (aberto ? ' L' : ' M') + x + ' ' + y;
+      aberto = true;
+    });
+    return d ? `<path d="${d.trim()}" fill="none" stroke="${s.cor}" stroke-width="${s.tracejada ? 1.75 : 2.25}" stroke-linejoin="round" stroke-linecap="round"${s.tracejada ? ' stroke-dasharray="5 4"' : ''} vector-effect="non-scaling-stroke"></path>` : '';
+  }).join('');
+
+  const pontos = series.map((s, i) => matriz[i].map((v, j) => v === null ? '' :
+    `<span class="vg-linha__ponto${s.tracejada ? ' vg-linha__ponto--leve' : ''}" style="left:${xPct(j)}%;bottom:${yPct(v)}%;--cor:${s.cor}"></span>`
+  ).join('')).join('');
+
+  const passoRotulo = Math.max(1, Math.ceil(n / 12));
+  const rotulosX = dados.map((d, j) => (j % passoRotulo === 0 || j === n - 1)
+    ? `<span class="vg-linha__xlab" style="left:${xPct(j)}%">${escapeHtml(formatarBucket(d.bucket, granularidade))}</span>` : '').join('');
+
+  el.innerHTML = `<div class="vg-legenda">${legenda}</div>
+    <div class="vg-plot"><div class="vg-plot__area vg-linha__area${n <= 3 ? ' vg-linha__area--poucos' : ''}" style="height:${cfg.altura || 186}px">${linhasGrade}
+      <svg class="vg-linha__svg" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">${caminhos}</svg>
+      <div class="vg-linha__pontos">${pontos}</div>
+      <div class="vg-linha__alvos">${dados.map((d, j) => `<div class="vg-linha__alvo" data-i="${j}"></div>`).join('')}</div>
+    </div></div>
+    <div class="vg-linha__x">${rotulosX}</div>`;
+
+  el.querySelectorAll('.vg-linha__alvo').forEach(alvo => {
+    const j = Number(alvo.dataset.i);
+    const d = dados[j];
+    const conteudo = () => {
+      const linhasTip = series.map((s, i) => `<span class="vg-tip__linha"><span class="vg-tip__ponto" style="background:${s.cor}"></span><span>${escapeHtml(s.rotulo)}</span><b>${formatar(s, matriz[i][j])}</b></span>`).join('');
+      const extras = cfg.extrasTip ? cfg.extrasTip(d) : [];
+      const extrasHtml = extras.length
+        ? '<div class="vg-tip__total vg-tip__total--lista">' + extras.map(e => `<span>${escapeHtml(e[0])}</span><b>${escapeHtml(e[1])}</b>`).join('') + '</div>'
+        : '';
+      return `<div class="vg-tip__titulo">${escapeHtml(formatarBucket(d.bucket, granularidade))}</div>${linhasTip}${extrasHtml}`;
+    };
+    alvo.addEventListener('mouseenter', (e) => mostrarTip(conteudo(), e));
+    alvo.addEventListener('mousemove', posicionarTip);
+    alvo.addEventListener('mouseleave', esconderTip);
+  });
 }
 
 function cardGrafico(id, titulo, apoio, largo, nota) {
@@ -549,29 +709,110 @@ function pintarVisaoFechamento(dados) {
   graficoBarrasH('g-motivos', dados.motivos_desqualificacao, 'motivo', 'quantidade', { cor: 'var(--ae-serie-1)' });
 }
 
+// -----------------------------------------------------------------------------
+// Sucesso do Cliente — Visão geral como resumo executivo, na sequência
+// Resultado → Qualidade → Diagnóstico → Risco → Ação. Todo indicador abre a
+// aba Atendimentos já filtrada (drill-down), e o que é estado do momento
+// ("agora") fica separado do que é histórico do período.
+// -----------------------------------------------------------------------------
+
+// Faixas gerenciais da nota de efetividade (classificação final do Vigia).
+const FAIXAS_CLASSIFICACAO = [
+  { chave: 'critico', rotulo: 'Crítico', min: 0, max: 49, cor: 'var(--vg-faixa-critico)' },
+  { chave: 'regular', rotulo: 'Regular', min: 50, max: 69, cor: 'var(--vg-faixa-regular)' },
+  { chave: 'bom', rotulo: 'Bom', min: 70, max: 84, cor: 'var(--vg-faixa-bom)' },
+  { chave: 'excelente', rotulo: 'Excelente', min: 85, max: 100, cor: 'var(--vg-faixa-excelente)' }
+];
+const ROTULOS_COMPONENTE = { ambos: 'IA e humano', ia: 'Somente IA', humano: 'Somente humano' };
+const LIMITE_CRITERIO_OK = 70; // abaixo disso o critério aparece em destaque
+
+function classificacaoDaNota(v) {
+  const f = FAIXAS_CLASSIFICACAO.find(x => v >= x.min && v < x.max + 1);
+  return f ? f.rotulo : '';
+}
+function faixaDeRotulo(rotulo) {
+  const m = String(rotulo || '').match(/(\d+)\D+(\d+)/);
+  return m ? { rotulo: String(rotulo), min: Number(m[1]), max: Number(m[2]) } : null;
+}
+function somaCampo(lista, campo) { return (lista || []).reduce((acc, d) => acc + num(d[campo]), 0); }
+function temAlgumCampo(lista, campos) { return (lista || []).some(d => campos.some(c => d[c] != null)); }
+function maiorPor(lista, campo) { return (lista || []).slice().sort((a, b) => num(b[campo]) - num(a[campo]))[0]; }
+
+function blocoVisao(id, titulo, apoio, conteudo, classeExtra, tag) {
+  return `<section class="vg-bloco${classeExtra ? ' ' + classeExtra : ''}" id="bloco-${id}" aria-label="${escapeHtml(titulo)}">
+    <header class="vg-bloco__cabecalho">
+      <h2 class="vg-bloco__titulo">${escapeHtml(titulo)}</h2>${tag ? `<span class="vg-kpi__tag">${escapeHtml(tag)}</span>` : ''}
+      ${apoio ? `<p class="vg-bloco__apoio">${escapeHtml(apoio)}</p>` : ''}
+    </header>
+    <div class="vg-graficos">${conteudo}</div>
+  </section>`;
+}
+
+// Um bloco sem nenhum card visível (todos sem dado) some inteiro, para não
+// deixar título de seção solto.
+function ocultarBlocosVazios(container) {
+  container.querySelectorAll('.vg-bloco').forEach(bloco => {
+    const cards = bloco.querySelectorAll('.vg-card');
+    bloco.hidden = cards.length > 0 && Array.from(cards).every(c => c.hidden);
+  });
+}
+
 function pintarVisaoSucesso(dados) {
   const k = dados.kpis || {};
+  const serie = dados.serie || [];
+  const gran = dados.granularidade;
 
+  const falhaLista = (dados.falha_critica || []).filter(f => !semFalhaCritica(f.motivo));
   let totalFalhasIa = num(k.falhas_ia);
-  if (Array.isArray(dados.falha_critica)) {
-    const falhasReais = dados.falha_critica.filter(f => !semFalhaCritica(f.motivo));
-    totalFalhasIa = falhasReais.reduce((acc, f) => acc + num(f.quantidade), 0);
-  }
+  if (Array.isArray(dados.falha_critica)) totalFalhasIa = falhaLista.reduce((acc, f) => acc + num(f.quantidade), 0);
 
-  $('kpis-visao').innerHTML = [
-    cardKpi({ rotulo: 'Atendimentos realizados', valor: nf.format(num(k.total_atendimentos)), apoio: 'no período selecionado' }),
+  const classif = Array.isArray(dados.distribuicao_classificacao_serie) && dados.distribuicao_classificacao_serie.length
+    ? dados.distribuicao_classificacao_serie : null;
+  const criticos = k.atendimentos_criticos != null ? num(k.atendimentos_criticos) : (classif ? somaCampo(classif, 'critico') : null);
+  const totalClassificados = classif ? FAIXAS_CLASSIFICACAO.reduce((acc, f) => acc + somaCampo(classif, f.chave), 0) : num(k.avaliados);
+  const faixaCritica = FAIXAS_CLASSIFICACAO[0];
+  const drillCritico = { faixa: { rotulo: faixaCritica.rotulo + ' (' + faixaCritica.min + '–' + faixaCritica.max + ')', min: faixaCritica.min, max: faixaCritica.max } };
+  const nota = k.efetividade_media_pct != null ? num(k.efetividade_media_pct) : null;
+  const riscosAgora = num(k.janela_2h_agora) + num(k.sem_resposta_60min_agora);
+
+  // ---------------------------------------------------------------- KPIs
+  const refPeriodo = estado.periodoRotulo + (estado.baseData === 'conclusao' ? ' · por data de conclusão' : ' · por data de criação');
+  const cardsPeriodo = [
+    cardKpi({
+      rotulo: 'Atendimentos',
+      valor: nf.format(num(k.total_atendimentos)),
+      apoio: nf.format(num(k.resolvidos)) + ' resolvidos · ' + nf.format(num(k.transferidos)) + ' transferidos',
+      drill: {}
+    }),
     cardKpi({
       rotulo: 'Taxa de resolução',
       valor: nf1.format(num(k.taxa_resolucao_pct)) + '%',
       medidorPct: num(k.taxa_resolucao_pct),
-      apoio: nf.format(num(k.resolvidos)) + ' resolvidos sem humano'
+      apoio: nf.format(num(k.resolvidos)) + ' resolvidos sem humano',
+      drill: { status: 'resolvido' }
     }),
     cardKpi({
-      rotulo: 'Transferidos e não atendidos',
-      valor: nf.format(num(k.transferidos_sem_atendimento)),
-      alerta: num(k.transferidos_sem_atendimento) > 0,
-      apoio: 'colaborador humano não assumiu',
-      status: 'transferido_sem_atendimento'
+      rotulo: 'Nota média',
+      valor: nota !== null ? nf.format(Math.round(nota)) + '<small class="vg-kpi__unidade">/100</small>' : '—',
+      medidorPct: nota,
+      apoio: nota !== null ? classificacaoDaNota(nota) + ' · ' + nf.format(num(k.avaliados)) + ' avaliados' : 'sem atendimentos avaliados',
+      drill: {}
+    }),
+    cardKpi({
+      rotulo: 'Atendimentos críticos',
+      valor: criticos !== null ? nf.format(criticos) : '—',
+      alerta: num(criticos) > 0,
+      apoio: criticos !== null
+        ? 'nota 0–49' + (totalClassificados ? ' · ' + nf1.format(pct(criticos, totalClassificados)) + '% dos avaliados' : '')
+        : 'nota 0–49 — sem dado no período',
+      drill: drillCritico
+    }),
+    cardKpi({
+      rotulo: 'Falhas críticas da IA',
+      valor: nf.format(totalFalhasIa),
+      alerta: totalFalhasIa > 0,
+      apoio: num(k.avaliados) ? nf1.format(pct(totalFalhasIa, num(k.avaliados))) + '% dos avaliados' : 'atendimentos com falha crítica',
+      sinal: 'falha_ia'
     }),
     cardKpi({
       rotulo: 'Clientes insatisfeitos',
@@ -579,47 +820,237 @@ function pintarVisaoSucesso(dados) {
       alerta: num(k.clientes_insatisfeitos) > 0,
       apoio: 'insatisfação detectada pela Supervisora',
       sinal: 'insatisfacao'
-    }),
-    cardKpi({
-      rotulo: 'Falhas da IA',
-      valor: nf.format(totalFalhasIa),
-      alerta: totalFalhasIa > 0,
-      apoio: 'atendimentos com falha crítica',
-      sinal: 'falha_ia'
     })
-  ].concat(KPI_ALERTAS(k)).join('');
+  ].join('');
 
+  const cardAgora = `<div class="vg-kpi vg-kpi--agora${riscosAgora > 0 ? ' vg-kpi--alerta' : ''}">
+      <div class="vg-kpi__topo"><span class="vg-kpi__rotulo">Riscos operacionais ativos</span></div>
+      <span class="vg-kpi__valor">${nf.format(riscosAgora)}</span>
+      <div class="vg-agora__linhas">
+        <button class="vg-agora__linha" type="button" ${drillAttr({ sinal: 'janela_2h' })}>
+          <span>Janela de 24h encerrando</span><b>${nf.format(num(k.janela_2h_agora))}</b>
+        </button>
+        <button class="vg-agora__linha" type="button" ${drillAttr({ sinal: 'sem_resposta_60min' })}>
+          <span>Sem resposta há +1h</span><b>${nf.format(num(k.sem_resposta_60min_agora))}</b>
+        </button>
+      </div>
+      <button class="vg-link" type="button" data-rolar="riscos">ver riscos operacionais ↓</button>
+    </div>`;
+
+  const kpis = $('kpis-visao');
+  kpis.className = 'vg-kpis vg-kpis--agrupado';
+  kpis.innerHTML = `<div class="vg-kpi-grupo">
+      <div class="vg-kpi-grupo__topo"><span class="vg-kpi-grupo__rotulo">No período</span><span class="vg-kpi-grupo__ref">${escapeHtml(refPeriodo)}</span></div>
+      <div class="vg-kpi-grupo__cards">${cardsPeriodo}</div>
+    </div>
+    <div class="vg-kpi-grupo vg-kpi-grupo--agora">
+      <div class="vg-kpi-grupo__topo"><span class="vg-kpi-grupo__rotulo"><i class="vg-pulso" aria-hidden="true"></i>Agora</span><span class="vg-kpi-grupo__ref">independe do período</span></div>
+      ${cardAgora}
+    </div>`;
+
+  // ------------------------------------------------------------- Gráficos
+  const camposNota = ['nota_media_resolvidos', 'nota_media_transferidos', 'nota_media_humano'];
+  const temNotas = temAlgumCampo(serie, camposNota);
+  const tipos = dados.tipos_atendimento || [];
+  const temNotaTipo = tipos.some(t => t.nota_media != null);
+  const camposAlerta = ['alertas_janela_24h', 'alertas_sem_resposta', 'alertas_insatisfacao'];
+  const temHistAlertas = temAlgumCampo(serie, camposAlerta);
+
+  const apoioEvolucao = temNotas
+    ? 'nota média da Supervisora por desfecho; a linha tracejada é a taxa de resolução (%)'
+    : 'taxa de resolução (%) ao longo do período — a nota por desfecho aparece assim que a Supervisora enviar';
+  const apoioFaixas = classif
+    ? 'Excelente 85–100 · Bom 70–84 · Regular 50–69 · Crítico 0–49 — clique em uma faixa para ver os atendimentos'
+    : 'atendimentos por faixa de nota da Supervisora — clique em uma faixa para ver os atendimentos';
+
+  $('graficos-visao').className = 'vg-graficos vg-graficos--blocos';
   $('graficos-visao').innerHTML =
-    cardGrafico('g-serie', 'Resolvidos pela IA x transferidos', 'volume por desfecho, com a taxa de resolução no tooltip', true, notaGranularidade(dados)) +
-    cardGrafico('g-composicao', 'Composição das resoluções', 'participação de cada desfecho') +
-    cardGrafico('g-tipos', 'Tipos de atendimento', 'andamento processual, dúvidas gerais e golpe do falso advogado') +
-    cardGrafico('g-transferencia', 'Motivos de transferência', 'quantidade por motivo', true);
+    blocoVisao('evolucao', 'Evolução', 'estamos melhorando ou piorando?',
+      cardGrafico('g-evolucao', 'Evolução da taxa de resolução', apoioEvolucao, true, notaGranularidade(dados))) +
+    blocoVisao('qualidade', 'Qualidade', 'como as notas se distribuem e onde os critérios falham',
+      cardGrafico('g-faixas', 'Distribuição dos atendimentos por faixa', apoioFaixas, true, notaGranularidade(dados)) +
+      cardGrafico('g-criterios', 'Desempenho por critério', 'taxa de aprovação, do pior para o melhor — abaixo de ' + LIMITE_CRITERIO_OK + '% em destaque') +
+      cardGrafico('g-falhas', 'Motivos de falha crítica', 'quantidade por motivo')) +
+    blocoVisao('diagnostico', 'Diagnóstico', 'onde estão os problemas',
+      cardGrafico('g-tipos', temNotaTipo ? 'Efetividade por tipo de atendimento' : 'Tipos de atendimento',
+        temNotaTipo ? 'nota média por tipo, do pior para o melhor, com o volume ao lado' : 'andamento processual, dúvidas gerais e golpe do falso advogado') +
+      cardGrafico('g-transferencia', 'Motivos de transferência', 'quantidade por motivo')) +
+    blocoVisao('riscos', 'Riscos operacionais', 'situações que pedem atenção da equipe — separadas do histórico de qualidade',
+      cardGrafico('g-alertas', 'Alertas operacionais por tipo',
+        temHistAlertas ? 'ocorrências no período — clique para ver os atendimentos' : 'janela e sem resposta refletem o momento atual; os demais, o período') +
+      cardGrafico('g-alertas-evolucao', 'Evolução dos alertas', 'alertas disparados ao longo do período', false, notaGranularidade(dados)),
+      'vg-bloco--risco', 'agora + período') +
+    blocoVisao('acao', 'Onde agir', 'pontos de atenção derivados dos filtros atuais — cada um abre a evidência',
+      '<div class="vg-card vg-card--largo"><div id="g-acoes"></div></div>');
 
-  graficoBarras('g-serie', dados.serie, [
-    { chave: 'resolvidos', rotulo: 'Resolvidos pela IA', cor: 'var(--ae-serie-2)' },
-    { chave: 'transferidos', rotulo: 'Transferidos', cor: 'var(--ae-serie-1)' }
-  ], dados.granularidade, {
-    taxaRotulo: 'Taxa de resolução',
-    taxaValor: num(k.taxa_resolucao_pct),
-    taxaBucket: (d) => pct(num(d.resolvidos), num(d.atendimentos))
+  // Evolução da taxa de resolução (linha)
+  const seriesEvolucao = [];
+  if (temNotas) {
+    seriesEvolucao.push(
+      { chave: 'nota_media_resolvidos', rotulo: 'Resolvidos pela IA', cor: 'var(--ae-serie-2)', peso: 'resolvidos' },
+      { chave: 'nota_media_transferidos', rotulo: 'Transferidos', cor: 'var(--ae-serie-1)', peso: 'transferidos' },
+      { chave: 'nota_media_humano', rotulo: 'Iniciados e atendidos por humano', cor: 'var(--vg-faixa-bom)', peso: 'atendidos_humano' }
+    );
+  }
+  seriesEvolucao.push({
+    rotulo: 'Taxa de resolução',
+    valor: (d) => num(d.atendimentos) ? pct(num(d.resolvidos), num(d.atendimentos)) : null,
+    cor: 'var(--ae-text-soft)',
+    tracejada: true,
+    formato: 'pct',
+    agregado: num(k.taxa_resolucao_pct)
+  });
+  graficoLinha('g-evolucao', serie, seriesEvolucao, gran, {
+    max: 100,
+    altura: 220,
+    camposMedia: camposNota,
+    extrasTip: (d) => {
+      const out = [['Atendimentos', nf.format(num(d.atendimentos))], ['Resolvidos pela IA', nf.format(num(d.resolvidos))], ['Transferidos', nf.format(num(d.transferidos))]];
+      if (d.atendidos_humano != null) out.push(['Atendidos por humano', nf.format(num(d.atendidos_humano))]);
+      return out;
+    }
   });
 
-  graficoComposicao('g-composicao', [
-    { rotulo: 'Resolvido só pela IA', valor: num(k.resolvidos), cor: 'var(--ae-serie-2)', status: 'resolvido' },
-    { rotulo: 'Transferido para humano', valor: num(k.transferidos), cor: 'var(--ae-serie-1)', status: 'transferido' }
-  ], {
-    rodape: nf.format(num(k.total_atendimentos)) + ' atendimentos no período',
-    aoClicarParte: (p) => irParaAtendimentos({ status: p.status })
+  // Distribuição por faixa (barras empilhadas)
+  const irFaixa = (s) => { if (s.faixa) irParaAtendimentos({ faixa: s.faixa }); };
+  if (classif) {
+    graficoBarras('g-faixas', classif, FAIXAS_CLASSIFICACAO.map(f => ({
+      chave: f.chave, rotulo: f.rotulo + ' · ' + f.min + '–' + f.max, cor: f.cor,
+      faixa: { rotulo: f.rotulo + ' (' + f.min + '–' + f.max + ')', min: f.min, max: f.max }
+    })), gran, { legendaPct: true, aoClicarSerie: irFaixa });
+  } else {
+    graficoBarras('g-faixas', dados.distribuicao_score_serie, (dados.distribuicao_score_faixas || []).map((f, i) => ({
+      chave: f.chave, rotulo: f.rotulo, cor: CORES_FAIXA[i % CORES_FAIXA.length], faixa: faixaDeRotulo(f.rotulo)
+    })), gran, { legendaPct: true, aoClicarSerie: irFaixa });
+  }
+
+  // Desempenho por critério (barras horizontais, pior primeiro)
+  const criterios = (dados.criterios || []).map(c => Object.assign({}, c, {
+    rotulo: (estado.componente === 'ambos' && c.componente) ? (c.componente === 'humano' ? 'Humano · ' : 'IA · ') + c.criterio : c.criterio
+  }));
+  graficoBarrasH('g-criterios', criterios, 'rotulo', 'taxa_aprovacao_pct', {
+    formatador: v => nf1.format(v) + '%',
+    campoSecundario: 'quantidade_avaliada',
+    formatadorSecundario: v => nf.format(num(v)) + ' aval.',
+    ordemCrescente: true,
+    max: 100,
+    corPorValor: v => v < LIMITE_CRITERIO_OK ? 'var(--vg-faixa-critico)' : 'var(--ae-serie-2)',
+    aoClicarItem: (d) => irParaAtendimentos({ criterio: d.criterio })
   });
 
-  graficoBarrasH('g-tipos', dados.tipos_atendimento, 'tipo', 'quantidade', {
-    cor: 'var(--ae-serie-4)',
-    aoClicarItem: (d) => irParaAtendimentos({ tipoAtendimento: d.tipo })
+  graficoBarrasH('g-falhas', falhaLista, 'motivo', 'quantidade', {
+    cor: 'var(--ae-serie-7)',
+    aoClicarItem: (d) => irParaAtendimentos({ motivoFalha: d.motivo })
   });
+
+  // Diagnóstico
+  if (temNotaTipo) {
+    graficoBarrasH('g-tipos', tipos, 'tipo', 'nota_media', {
+      ignorarNulos: true,
+      ordemCrescente: true,
+      max: 100,
+      formatador: v => nf.format(Math.round(v)),
+      campoSecundario: 'quantidade',
+      formatadorSecundario: v => nf.format(num(v)) + ' atend.',
+      corPorValor: v => v < LIMITE_CRITERIO_OK ? 'var(--vg-faixa-critico)' : 'var(--ae-serie-4)',
+      aoClicarItem: (d) => irParaAtendimentos({ tipoAtendimento: d.tipo })
+    });
+  } else {
+    graficoBarrasH('g-tipos', tipos, 'tipo', 'quantidade', {
+      cor: 'var(--ae-serie-4)',
+      aoClicarItem: (d) => irParaAtendimentos({ tipoAtendimento: d.tipo })
+    });
+  }
   graficoBarrasH('g-transferencia', dados.motivos_transferencia, 'motivo', 'quantidade', {
     cor: 'var(--ae-serie-3)',
     aoClicarItem: (d) => irParaAtendimentos({ motivoTransferencia: d.motivo })
   });
+
+  // Riscos operacionais
+  const somaSerie = (campo) => somaCampo(serie, campo);
+  const alertas = [
+    {
+      tipo: 'Janela de 24h encerrando' + (temHistAlertas ? '' : ' (agora)'),
+      quantidade: temHistAlertas ? somaSerie('alertas_janela_24h') : num(k.janela_2h_agora),
+      patch: { sinal: 'janela_2h' }
+    },
+    {
+      tipo: 'Sem resposta há +1h' + (temHistAlertas ? '' : ' (agora)'),
+      quantidade: temHistAlertas ? somaSerie('alertas_sem_resposta') : num(k.sem_resposta_60min_agora),
+      patch: { sinal: 'sem_resposta_60min' }
+    },
+    {
+      tipo: 'Cliente insatisfeito',
+      quantidade: temHistAlertas ? somaSerie('alertas_insatisfacao') : num(k.clientes_insatisfeitos),
+      patch: { sinal: 'insatisfacao' }
+    },
+    {
+      tipo: 'Transferido e não atendido',
+      quantidade: num(k.transferidos_sem_atendimento),
+      patch: { status: 'transferido_sem_atendimento' }
+    }
+  ];
+  graficoBarrasH('g-alertas', alertas, 'tipo', 'quantidade', {
+    cor: 'var(--ae-serie-1)',
+    semParticipacao: true,
+    mensagemVazio: ['Nenhum alerta operacional', 'Sem janela encerrando, cliente sem resposta, insatisfação ou transferência sem atendimento nos filtros atuais.'],
+    aoClicarItem: (d) => irParaAtendimentos(d.patch)
+  });
+
+  graficoLinha('g-alertas-evolucao', serie, [
+    { chave: 'alertas_janela_24h', rotulo: 'Janela de 24h', cor: 'var(--ae-serie-3)', somar: true, formato: 'int' },
+    { chave: 'alertas_sem_resposta', rotulo: 'Sem resposta', cor: 'var(--ae-serie-1)', somar: true, formato: 'int' },
+    { chave: 'alertas_insatisfacao', rotulo: 'Cliente insatisfeito', cor: 'var(--ae-serie-7)', somar: true, formato: 'int' }
+  ], gran, {
+    mensagemVazio: ['Histórico de alertas indisponível', 'A evolução aparece assim que a Supervisora enviar os alertas disparados por dia.']
+  });
+
+  // Onde agir
+  pintarAcoesSucesso({ k, criterios, falhaLista, tipos, temNotaTipo, criticos, drillCritico });
+
+  ocultarBlocosVazios($('graficos-visao'));
+}
+
+function pintarAcoesSucesso({ k, criterios, falhaLista, tipos, temNotaTipo, criticos, drillCritico }) {
+  const acoes = [];
+  const plural = (n, um, varios) => nf.format(n) + ' ' + (n === 1 ? um : varios);
+
+  if (num(k.sem_resposta_60min_agora) > 0) {
+    acoes.push({ alto: true, texto: plural(num(k.sem_resposta_60min_agora), 'cliente aguardando resposta há mais de 1h', 'clientes aguardando resposta há mais de 1h'), apoio: 'agora', patch: { sinal: 'sem_resposta_60min' } });
+  }
+  if (num(k.janela_2h_agora) > 0) {
+    acoes.push({ alto: true, texto: plural(num(k.janela_2h_agora), 'conversa com a janela de 24h encerrando', 'conversas com a janela de 24h encerrando'), apoio: 'agora · 2h ou menos', patch: { sinal: 'janela_2h' } });
+  }
+  if (num(criticos) > 0) {
+    acoes.push({ alto: true, texto: plural(num(criticos), 'atendimento na faixa crítica', 'atendimentos na faixa crítica'), apoio: 'nota 0–49 no período', patch: drillCritico });
+  }
+  if (num(k.transferidos_sem_atendimento) > 0) {
+    acoes.push({ texto: plural(num(k.transferidos_sem_atendimento), 'transferência sem atendimento humano', 'transferências sem atendimento humano'), apoio: 'no período', patch: { status: 'transferido_sem_atendimento' } });
+  }
+  const piorCriterio = (criterios || []).filter(c => c.taxa_aprovacao_pct != null).sort((a, b) => num(a.taxa_aprovacao_pct) - num(b.taxa_aprovacao_pct))[0];
+  if (piorCriterio && num(piorCriterio.taxa_aprovacao_pct) < 100) {
+    acoes.push({ alto: num(piorCriterio.taxa_aprovacao_pct) < LIMITE_CRITERIO_OK, texto: 'Critério com pior desempenho: ' + piorCriterio.rotulo, apoio: nf1.format(num(piorCriterio.taxa_aprovacao_pct)) + '% de aprovação', patch: { criterio: piorCriterio.criterio } });
+  }
+  const topFalha = maiorPor(falhaLista, 'quantidade');
+  if (topFalha && num(topFalha.quantidade) > 0) {
+    acoes.push({ texto: 'Falha crítica mais frequente: ' + topFalha.motivo, apoio: plural(num(topFalha.quantidade), 'ocorrência', 'ocorrências'), patch: { motivoFalha: topFalha.motivo } });
+  }
+  if (temNotaTipo) {
+    const piorTipo = (tipos || []).filter(t => t.nota_media != null).sort((a, b) => num(a.nota_media) - num(b.nota_media))[0];
+    if (piorTipo) acoes.push({ texto: 'Tipo de atendimento com menor nota: ' + piorTipo.tipo, apoio: 'nota média ' + nf.format(Math.round(num(piorTipo.nota_media))), patch: { tipoAtendimento: piorTipo.tipo } });
+  }
+
+  const el = $('g-acoes');
+  if (!acoes.length) {
+    el.innerHTML = blocoVazio('Nenhum ponto de atenção', 'Sem riscos ativos, atendimentos críticos ou falhas nos filtros atuais.');
+    return;
+  }
+  acoes.sort((a, b) => (b.alto ? 1 : 0) - (a.alto ? 1 : 0));
+  el.innerHTML = '<div class="vg-acoes-lista">' + acoes.slice(0, 6).map(a => `<button class="vg-acao${a.alto ? ' vg-acao--alto' : ''}" type="button" ${drillAttr(a.patch)}>
+      <span class="vg-acao__marca" aria-hidden="true"></span>
+      <span class="vg-acao__texto"><b>${escapeHtml(a.texto)}</b><span>${escapeHtml(a.apoio || '')}</span></span>
+      <span class="vg-acao__ir">ver atendimentos →</span>
+    </button>`).join('') + '</div>';
 }
 
 // =============================================================================
@@ -857,6 +1288,8 @@ function parametrosFiltro() {
     base_data: estado.baseData,
     scope_token: (estado.permissoes && estado.permissoes.scope_token) || '',
     ...(estado.colaborador ? { colaborador: estado.colaborador } : {}),
+    ...(estado.departamento === 'sucesso_cliente' ? { componente: estado.componente } : {}),
+    ...(estado.filtroFaixa ? { score_min: estado.filtroFaixa.min, score_max: estado.filtroFaixa.max } : {}),
     ...(estado.filtroMotivoFalha ? { motivo_falha: estado.filtroMotivoFalha } : {}),
     ...(estado.filtroCriterio ? { criterio: estado.filtroCriterio } : {}),
     ...(estado.filtroTipoAtendimento ? { tipo_atendimento: estado.filtroTipoAtendimento } : {}),
@@ -884,14 +1317,14 @@ async function carregarMetricas(forcar) {
   marcarCarregando(true);
   try {
     estado.dados = estado.demo
-      ? window.VigiaDemo.metricas(estado.agente, estado.periodos)
+      ? window.VigiaDemo.metricas(estado.agente, estado.periodos, { componente: estado.componente })
       : await chamarApi('painel-vigia-engel-metricas', parametrosFiltro());
     pintarMetricas();
     marcarAtualizado();
   } catch (e) {
     ativarDemo('A API da Supervisora não respondeu (' + e.message + '), então o painel exibe um conjunto de exemplo. Nenhum número aqui é dado real da operação.');
     try {
-      estado.dados = window.VigiaDemo.metricas(estado.agente, estado.periodos);
+      estado.dados = window.VigiaDemo.metricas(estado.agente, estado.periodos, { componente: estado.componente });
       pintarMetricas();
       marcarAtualizado();
     } catch (e2) {
@@ -908,6 +1341,8 @@ function pintarMetricas() {
   const dados = estado.dados;
   if (!dados) return;
   popularFiltrosDinamicos(dados);
+  $('kpis-visao').className = 'vg-kpis';
+  $('graficos-visao').className = 'vg-graficos';
   if (estado.secao === 'qualidade') pintarQualidade(dados);
   else if (estado.agente === 'sdr') pintarVisaoSdr(dados);
   else if (estado.agente === 'fechamento') pintarVisaoFechamento(dados);
@@ -938,6 +1373,21 @@ async function carregarAtendimentos() {
         return item.falha_critica === estado.filtroMotivoFalha;
       });
       if (estado.pagina === 1 && estado.lista.itens.length < estado.limite) {
+        estado.lista.total = estado.lista.itens.length;
+      }
+    }
+
+    // Mesmo padrão do motivo de falha: garante a faixa de nota na página
+    // atual enquanto o endpoint não aplica score_min/score_max.
+    if (estado.filtroFaixa && estado.lista && estado.lista.itens) {
+      const { min, max } = estado.filtroFaixa;
+      const antes = estado.lista.itens.length;
+      estado.lista.itens = estado.lista.itens.filter(item => {
+        if (item.score_efetividade == null) return false;
+        const v = Math.round(num(item.score_efetividade));
+        return v >= min && v <= max;
+      });
+      if (estado.lista.itens.length !== antes && estado.pagina === 1 && estado.lista.itens.length < estado.limite) {
         estado.lista.total = estado.lista.itens.length;
       }
     }
@@ -1104,6 +1554,14 @@ function atualizarResumoFiltros() {
     pilulas.push(`<span class="vg-pilula">Transferência: <b>${escapeHtml(estado.filtroMotivoTransferencia)}</b>
       <button class="vg-pilula__x" type="button" data-limpar="motivo-transferencia" aria-label="Remover filtro de transferência">×</button></span>`);
   }
+  if (estado.filtroFaixa) {
+    pilulas.push(`<span class="vg-pilula">Faixa: <b>${escapeHtml(estado.filtroFaixa.rotulo)}</b>
+      <button class="vg-pilula__x" type="button" data-limpar="faixa" aria-label="Remover filtro de faixa">×</button></span>`);
+  }
+  if (estado.departamento === 'sucesso_cliente' && estado.componente !== 'ambos') {
+    pilulas.push(`<span class="vg-pilula">Componente: <b>${escapeHtml(ROTULOS_COMPONENTE[estado.componente] || estado.componente)}</b>
+      <button class="vg-pilula__x" type="button" data-limpar="componente" aria-label="Remover filtro de componente">×</button></span>`);
+  }
 
   $('filtros-resumo').innerHTML = pilulas.join('') + (pilulas.length ? '<button class="vg-limpar" type="button" data-limpar="tudo">Limpar filtros</button>' : '');
   $('filtro-colaborador').classList.toggle('is-alterado', !!estado.colaborador);
@@ -1112,12 +1570,27 @@ function atualizarResumoFiltros() {
   $('filtro-criterio').classList.toggle('is-alterado', !!estado.filtroCriterio);
   $('filtro-motivo-falha').classList.toggle('is-alterado', !!estado.filtroMotivoFalha);
   $('btn-periodo').classList.toggle('is-alterado', !estado.periodoPreset);
+  $('filtro-componente').classList.toggle('is-alterado', estado.componente !== 'ambos');
+  $('filtro-avaliado').classList.toggle('is-alterado', estado.avaliado !== 'sim');
+
+  // Contador do botão "Mais filtros": quantos filtros secundários estão ativos.
+  const secundarios = [
+    estado.status !== 'todos',
+    !!estado.filtroCriterio,
+    !!estado.filtroMotivoFalha,
+    estado.avaliado !== 'sim',
+    estado.departamento === 'sucesso_cliente' && estado.componente !== 'ambos'
+  ].filter(Boolean).length;
+  $('mais-filtros-contador').hidden = !secundarios;
+  $('mais-filtros-contador').textContent = secundarios;
+  $('btn-mais-filtros').classList.toggle('is-alterado', secundarios > 0);
 }
 
 function sincronizarSelectsFiltro() {
   $('filtro-status').value = estado.status;
   $('filtro-criterio').value = estado.filtroCriterio || '';
   $('filtro-motivo-falha').value = estado.filtroMotivoFalha || '';
+  $('filtro-componente').value = estado.componente;
 }
 
 function irParaAtendimentos(patch) {
@@ -1126,6 +1599,8 @@ function irParaAtendimentos(patch) {
   estado.filtroCriterio = null;
   estado.filtroTipoAtendimento = null;
   estado.filtroMotivoTransferencia = null;
+  estado.filtroFaixa = null;
+  if (patch.faixa) estado.filtroFaixa = patch.faixa;
   if (patch.status !== undefined) estado.status = patch.status;
   if (patch.sinal) estado.sinais[patch.sinal] = true;
   if (patch.motivoFalha) estado.filtroMotivoFalha = patch.motivoFalha;
@@ -1139,8 +1614,8 @@ function irParaAtendimentos(patch) {
 }
 
 function popularFiltrosDinamicos(dados) {
-  const criterios = (dados.criterios || []).map(c => c.criterio).filter(Boolean);
-  const motivos = (dados.falha_critica || []).map(f => f.motivo).filter(m => m && !semFalhaCritica(m));
+  const criterios = Array.from(new Set((dados.criterios || []).map(c => c.criterio).filter(Boolean)));
+  const motivos = Array.from(new Set((dados.falha_critica || []).map(f => f.motivo).filter(m => m && !semFalhaCritica(m))));
   const selCriterio = $('filtro-criterio');
   const selMotivo = $('filtro-motivo-falha');
   const atualCriterio = estado.filtroCriterio;
@@ -1183,6 +1658,25 @@ function recarregarPorFiltro() {
   estado.pagina = 1;
   atualizarResumoFiltros();
   atualizarTudo();
+}
+
+// =============================================================================
+// Popover "Mais filtros" (filtros secundários)
+// =============================================================================
+function abrirPopupMais() { $('mais-filtros-popup').hidden = false; $('btn-mais-filtros').setAttribute('aria-expanded', 'true'); }
+function fecharPopupMais() { $('mais-filtros-popup').hidden = true; $('btn-mais-filtros').setAttribute('aria-expanded', 'false'); }
+
+function ligarPopupMais() {
+  $('btn-mais-filtros').addEventListener('click', (e) => {
+    e.stopPropagation();
+    fecharPopupPeriodo();
+    if ($('mais-filtros-popup').hidden) abrirPopupMais(); else fecharPopupMais();
+  });
+  $('mais-filtros-popup').addEventListener('click', (e) => e.stopPropagation());
+  $('btn-mais-filtros-fechar').addEventListener('click', fecharPopupMais);
+  $('btn-periodo').addEventListener('click', fecharPopupMais);
+  document.addEventListener('click', fecharPopupMais);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fecharPopupMais(); });
 }
 
 // =============================================================================
@@ -1352,6 +1846,8 @@ function pintarFiltrosDoDepartamento() {
     `<option value="${o[0]}"${(estado.colaborador || 'todos') === o[0] ? ' selected' : ''}>${escapeHtml(o[1])}</option>`).join('');
   $('filtro-base-data').hidden = estado.departamento !== 'sucesso_cliente';
   $('filtro-base-data').value = estado.baseData;
+  $('filtro-componente-wrap').hidden = estado.departamento !== 'sucesso_cliente';
+  $('filtro-componente').value = estado.componente;
   const statusDisponiveis = dep().status.filter(s => !(estado.baseData === 'conclusao' && s[0] === 'em_andamento'));
   if (estado.status === 'em_andamento' && estado.baseData === 'conclusao') estado.status = 'todos';
   $('filtro-status').innerHTML = statusDisponiveis.map(s =>
@@ -1370,6 +1866,8 @@ function selecionarDepartamento(departamento) {
   estado.filtroCriterio = null;
   estado.filtroTipoAtendimento = null;
   estado.filtroMotivoTransferencia = null;
+  estado.filtroFaixa = null;
+  estado.componente = 'ambos';
   estado.dados = null;
   estado.pagina = 1;
   pintarSegDepartamento();
@@ -1447,6 +1945,10 @@ function ligarNavegacao() {
     estado.filtroMotivoFalha = e.target.value || null;
     recarregarPorFiltro();
   });
+  $('filtro-componente').addEventListener('change', (e) => {
+    estado.componente = e.target.value || 'ambos';
+    recarregarPorFiltro();
+  });
   $('filtro-limite').addEventListener('change', (e) => {
     estado.limite = Number(e.target.value);
     estado.pagina = 1;
@@ -1469,6 +1971,8 @@ function ligarNavegacao() {
     if (qual === 'motivo-falha' || qual === 'tudo') { estado.filtroMotivoFalha = null; $('filtro-motivo-falha').value = ''; }
     if (qual === 'tipo-atendimento' || qual === 'tudo') estado.filtroTipoAtendimento = null;
     if (qual === 'motivo-transferencia' || qual === 'tudo') estado.filtroMotivoTransferencia = null;
+    if (qual === 'faixa' || qual === 'tudo') estado.filtroFaixa = null;
+    if (qual === 'componente' || qual === 'tudo') { estado.componente = 'ambos'; $('filtro-componente').value = 'ambos'; }
     if (qual === 'tudo') Object.keys(estado.sinais).forEach(k => { estado.sinais[k] = false; });
     if (qual.indexOf('sinal:') === 0) estado.sinais[qual.split(':')[1]] = false;
     recarregarPorFiltro();
@@ -1490,6 +1994,22 @@ function ligarNavegacao() {
       if (b.dataset.sinal) irParaAtendimentos({ sinal: b.dataset.sinal });
       else irParaAtendimentos({ status: b.dataset.status });
     });
+  });
+
+  // Drill-down genérico da Visão geral: KPIs, faixas, alertas e "Onde agir"
+  // carregam o filtro em data-drill; data-rolar leva a um bloco da própria aba.
+  $('secao-visao').addEventListener('click', (e) => {
+    const rolar = e.target.closest('[data-rolar]');
+    if (rolar) {
+      const alvo = $('bloco-' + rolar.dataset.rolar);
+      if (!alvo) return;
+      if (window.BX24 && typeof BX24.scrollParentWindow === 'function') BX24.scrollParentWindow(alvo.getBoundingClientRect().top + window.scrollY - 20);
+      else alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    const b = e.target.closest('[data-drill]');
+    if (!b) return;
+    try { irParaAtendimentos(JSON.parse(b.dataset.drill || '{}')); } catch (err) { irParaAtendimentos({}); }
   });
 
   $('tabela-corpo').addEventListener('click', (e) => {
@@ -1521,6 +2041,7 @@ async function iniciar() {
   carregarLogos();
   ligarNavegacao();
   ligarPopupPeriodo();
+  ligarPopupMais();
   aplicarPreset('hoje', true);
 
   estado.permissoes = await carregarPermissoes();
