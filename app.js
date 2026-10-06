@@ -273,7 +273,7 @@ function skeletonGraficos(q) {
 function pintarCarregandoMetricas() {
   const secao = estado.secao === 'qualidade' ? 'qualidade' : 'visao';
   if (secao === 'visao') { $('kpis-visao').className = 'vg-kpis'; $('graficos-visao').className = 'vg-graficos'; }
-  $('kpis-' + secao).innerHTML = skeletonKpis(secao === 'visao' ? (estado.agente === 'sucesso' ? 7 : 5) : 3);
+  $('kpis-' + secao).innerHTML = skeletonKpis(secao === 'visao' ? (estado.agente === 'sucesso' ? 6 : 5) : 3);
   $('graficos-' + secao).innerHTML = skeletonGraficos(3);
 }
 
@@ -726,10 +726,6 @@ const FAIXAS_CLASSIFICACAO = [
 const ROTULOS_COMPONENTE = { ambos: 'IA e humano', ia: 'Somente IA', humano: 'Somente humano' };
 const LIMITE_CRITERIO_OK = 70; // abaixo disso o critério aparece em destaque
 
-function classificacaoDaNota(v) {
-  const f = FAIXAS_CLASSIFICACAO.find(x => v >= x.min && v < x.max + 1);
-  return f ? f.rotulo : '';
-}
 function faixaDeRotulo(rotulo) {
   const m = String(rotulo || '').match(/(\d+)\D+(\d+)/);
   return m ? { rotulo: String(rotulo), min: Number(m[1]), max: Number(m[2]) } : null;
@@ -772,7 +768,6 @@ function pintarVisaoSucesso(dados) {
   const totalClassificados = classif ? FAIXAS_CLASSIFICACAO.reduce((acc, f) => acc + somaCampo(classif, f.chave), 0) : num(k.avaliados);
   const faixaCritica = FAIXAS_CLASSIFICACAO[0];
   const drillCritico = { faixa: { rotulo: faixaCritica.rotulo + ' (' + faixaCritica.min + '–' + faixaCritica.max + ')', min: faixaCritica.min, max: faixaCritica.max } };
-  const nota = k.efetividade_media_pct != null ? num(k.efetividade_media_pct) : null;
   const riscosAgora = num(k.janela_2h_agora) + num(k.sem_resposta_60min_agora);
 
   // ---------------------------------------------------------------- KPIs
@@ -790,13 +785,6 @@ function pintarVisaoSucesso(dados) {
       medidorPct: num(k.taxa_resolucao_pct),
       apoio: nf.format(num(k.resolvidos)) + ' resolvidos sem humano',
       drill: { status: 'resolvido' }
-    }),
-    cardKpi({
-      rotulo: 'Nota média',
-      valor: nota !== null ? nf.format(Math.round(nota)) + '<small class="vg-kpi__unidade">/100</small>' : '—',
-      medidorPct: nota,
-      apoio: nota !== null ? classificacaoDaNota(nota) + ' · ' + nf.format(num(k.avaliados)) + ' avaliados' : 'sem atendimentos avaliados',
-      drill: {}
     }),
     cardKpi({
       rotulo: 'Atendimentos críticos',
@@ -1113,7 +1101,7 @@ function pintarQualidade(dados) {
 // =============================================================================
 const LARGURAS_COLUNA = {
   'Cliente': 16, 'Responsável': 10, 'Tipo': 8, 'Criado em': 9, 'Concluído em': 9,
-  'Status': 8, 'Score': 6, 'Avaliação da Supervisora': 28, 'Sinais': 6, 'Feedbacks (Laila)': 10
+  'Status': 8, 'Score': 6, 'Avaliação da Supervisora': 24, 'Sinais': 15, 'Feedbacks (Laila)': 10
 };
 
 function pintarColgroup() {
@@ -1197,13 +1185,69 @@ function celulaAvaliacaoColaborador(av) {
   return `<div class="vg-avaliacao-colaborador"><span class="vg-avaliacao-colaborador__rotulo">Colaborador — ${nome}</span>${corpo}</div>`;
 }
 
+// Critérios avaliados no atendimento: atendido (✓), não atendido (✕) ou não
+// se aplica (–, critério excluído do cálculo por renormalização). O status
+// vem de `atendido` (true/false/null); só na ausência dele, uma `nota` por
+// critério vira atendido quando >= LIMITE_CRITERIO_OK.
+function statusCriterio(c) {
+  if (c.atendido === true || c.atendido === false) return c.atendido;
+  if (c.nota != null && c.nota !== '') return num(c.nota) >= LIMITE_CRITERIO_OK;
+  return null;
+}
+
+function blocoCriterios(titulo, criterios) {
+  const lista = (criterios || []).filter(c => c && c.criterio);
+  if (!lista.length) return '';
+  const aplicaveis = lista.filter(c => statusCriterio(c) !== null);
+  const atendidos = aplicaveis.filter(c => statusCriterio(c) === true).length;
+  const linhas = lista.map(c => {
+    const st = statusCriterio(c);
+    const classe = st === true ? 'ok' : (st === false ? 'nao' : 'na');
+    const icone = st === true ? '✓' : (st === false ? '✕' : '–');
+    const texto = st === true ? 'atendido' : (st === false ? 'não atendido' : 'não se aplica');
+    const foco = estado.filtroCriterio && estado.filtroCriterio === c.criterio ? ' is-foco' : '';
+    const dica = c.criterio + ' — ' + texto + (c.nota != null && c.nota !== '' ? ' · nota ' + nf.format(num(c.nota)) : '') + (c.justificativa ? ' · ' + c.justificativa : '');
+    return `<li class="vg-crit vg-crit--${classe}${foco}" title="${escapeHtml(dica)}">
+        <span class="vg-crit__icone" aria-hidden="true">${icone}</span>
+        <span class="vg-crit__nome">${escapeHtml(c.criterio)}</span>
+        <span class="vg-sr"> — ${texto}</span>
+      </li>`;
+  }).join('');
+  const placar = aplicaveis.length
+    ? `<span class="vg-crits__placar${atendidos < aplicaveis.length ? ' is-falha' : ''}" title="${atendidos} de ${aplicaveis.length} critérios aplicáveis atendidos">${atendidos}/${aplicaveis.length}</span>`
+    : '';
+  return `<div class="vg-crits">
+      <div class="vg-crits__topo"><span class="vg-crits__titulo" title="${escapeHtml(titulo)}">${escapeHtml(titulo)}</span>${placar}</div>
+      <ul class="vg-crits__lista">${linhas}</ul>
+    </div>`;
+}
+
 function celulaSinais(item) {
   const chips = [];
   if (item.falha_critica) chips.push(`<span class="ae-badge ae-badge--erro">${escapeHtml(item.falha_critica)}</span>`);
   if (item.sem_resposta_60min) chips.push('<span class="ae-badge ae-badge--alerta">+1h sem resposta</span>');
   if (item.janela_2h) chips.push('<span class="ae-badge ae-badge--alerta">janela ≤2h</span>');
   if (item.insatisfacao) chips.push('<span class="ae-badge ae-badge--erro">insatisfeito</span>');
-  return chips.length ? '<div class="vg-sinais">' + chips.join('') + '</div>' : '<span class="vg-vazio-celula">—</span>';
+
+  // Critérios do colaborador e da IA, conforme o componente avaliado. Aceita
+  // critérios humanos em avaliacao_colaborador.criterios ou em item.criterios
+  // com componente = 'humano'.
+  const av = item.avaliacao_colaborador;
+  const todos = (item.criterios || []).map(c => Object.assign({ componente: 'ia' }, c))
+    .concat(((av && av.criterios) || []).map(c => Object.assign({}, c, { componente: 'humano' })));
+  const componente = estado.departamento === 'sucesso_cliente' ? estado.componente : 'ambos';
+  const nomeColaborador = (av && av.responsavel) || (item.origem === 'colaboradores' ? item.responsavel : '');
+  const grupos = [];
+  if (componente !== 'ia') {
+    grupos.push(blocoCriterios('Colaborador' + (nomeColaborador ? ' — ' + nomeColaborador : ''), todos.filter(c => c.componente === 'humano')));
+  }
+  if (componente !== 'humano') {
+    grupos.push(blocoCriterios(NOME_IA_AVALIADA[estado.agente] || 'IA', todos.filter(c => c.componente !== 'humano')));
+  }
+  const criterios = grupos.filter(Boolean).join('');
+
+  if (!chips.length && !criterios) return '<span class="vg-vazio-celula">—</span>';
+  return (chips.length ? '<div class="vg-sinais">' + chips.join('') + '</div>' : '') + criterios;
 }
 
 function celulaFeedback(item) {
