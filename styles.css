@@ -722,6 +722,7 @@ a.vg-cliente__nome:hover { text-decoration: underline; }
   color: var(--ae-text-soft);
   max-width: 380px;
 }
+.vg-avaliacao-colaborador__falha { display: inline-flex; margin: 3px 0 1px; }
 .vg-avaliacao-colaborador__rotulo {
   display: block;
   font-weight: 600;
@@ -1031,7 +1032,18 @@ button.vg-kpi:hover { border-color: var(--ae-border-strong); }
   width: min(320px, calc(100vw - 40px));
   grid-template-columns: 1fr;
   gap: 12px;
+  max-height: min(78vh, 680px);
+  overflow-y: auto;
 }
+/* Grupo "Auditoria do colaborador" dentro de Mais filtros */
+.vg-popover__secao {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--ae-border);
+}
+.vg-popover__secao-titulo { margin: 0; color: var(--ae-magic-pink); }
 .vg-campo-rotulado { display: flex; flex-direction: column; gap: 5px; }
 .vg-campo-rotulado .ae-rotulo { margin: 0; }
 .vg-campo-rotulado .vg-campo { width: 100%; }
