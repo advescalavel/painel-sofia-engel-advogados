@@ -59,7 +59,9 @@ window.VigiaDemo = (function () {
   var CRITERIOS_SC = ['Compreensão da demanda', 'Precisão da resposta', 'Esforço do cliente', 'Encaminhamento'];
   // Critérios da auditoria humana (colaboradores de Sucesso do Cliente) —
   // nomes ilustrativos, só para exercitar o filtro "Componente avaliado".
-  var CRITERIOS_HUMANO = ['Tempo de resposta', 'Clareza e cordialidade', 'Resolução da demanda', 'Registro e encaminhamento'];
+  // Mesmos nomes da auditoria humana real (vw_qualidade_humana_sucesso_cliente).
+  var CRITERIOS_HUMANO = ['Objetividade', 'Simplicidade', 'Velocidade', 'Previsibilidade'];
+  var FALHAS_COLAB = ['Demora no retorno', 'Não registrou o encaminhamento', 'Informação divergente'];
   var NOMES = ['Ana Beatriz Moraes', 'Carlos Eduardo Lima', 'Fernanda Ribeiro', 'Marcos Vinícius Alves', 'Juliana Prado', 'Rafael Antunes', 'Patrícia Nogueira', 'Diego Camargo', 'Larissa Bittencourt', 'Otávio Menezes', 'Simone Vasconcelos', 'Thiago Barreto', 'Camila Deodoro', 'Henrique Salles', 'Vanessa Kuhn', 'Rodrigo Peixoto', 'Bianca Almeida', 'Leandro Furtado', 'Mariana Bastos', 'Gustavo Pinheiro', 'Renata Sampaio', 'Felipe Andrade'];
   var COLABS_COM = ['Bruno Tavares', 'Cíntia Rocha', 'Eduardo Prado'];
   var COLABS_SC = ['Laila Oliveira', 'Mell Ferreira', 'Paula Ventura'];
@@ -285,6 +287,8 @@ window.VigiaDemo = (function () {
             responsavel: colab,
             score_efetividade: notaColab,
             justificativa_avaliacao: notaColab >= 70 ? 'Retorno no prazo e demanda resolvida.' : 'Demorou a responder e não registrou o encaminhamento.',
+            falha_critica: notaColab < 70 ? FALHAS_COLAB[i % FALHAS_COLAB.length] : null,
+            auditado: true,
             criterios: critsHumano
           };
         }
@@ -319,6 +323,13 @@ window.VigiaDemo = (function () {
       }
       if (params.base_data === 'conclusao' && !a.finished_at) return false;
       if (params.colaborador && params.colaborador !== 'todos' && a.origem !== params.colaborador) return false;
+      if (params.criterio && !criterioConfere(a.criterios, params.criterio, params.criterio_resultado)) return false;
+      var av = a.avaliacao_colaborador;
+      if (params.criterio_colaborador && !(av && criterioConfere(av.criterios, params.criterio_colaborador, params.criterio_resultado))) return false;
+      if (params.falha_colaborador) {
+        var fc = av && av.falha_critica;
+        if (params.falha_colaborador === '__qualquer__' ? !fc : fc !== params.falha_colaborador) return false;
+      }
       return true;
     }).sort(function (a, b) {
       var campo = params.base_data === 'conclusao' ? 'finished_at' : 'started_at';
@@ -338,8 +349,23 @@ window.VigiaDemo = (function () {
         com_feedback: itens.filter(function (a) { return a.feedbacks && a.feedbacks.total; }).length,
         insatisfacao: itens.filter(function (a) { return a.insatisfacao; }).length
       },
+      opcoes_filtro: {
+        criterios_ia: isSC ? CRITERIOS_SC : CRITERIOS_COM,
+        criterios_colaborador: isSC ? CRITERIOS_HUMANO : [],
+        falhas_ia: (isSC ? FALHAS_SC : FALHAS_COM).map(function (m) { return { motivo: m, quantidade: 0 }; }),
+        falhas_colaborador: isSC ? FALHAS_COLAB.map(function (m) { return { motivo: m, quantidade: 0 }; }) : []
+      },
       itens: filtrados.slice((pagina - 1) * limite, pagina * limite)
     };
+  }
+
+  // Mesmo critério do endpoint: 'nao_atendido' (padrão), 'atendido' ou 'avaliado'.
+  function criterioConfere(lista, nome, resultado) {
+    var c = (lista || []).filter(function (x) { return x.criterio === nome; })[0];
+    if (!c || c.atendido === null || c.atendido === undefined) return false;
+    if (resultado === 'avaliado') return true;
+    if (resultado === 'atendido') return c.atendido === true;
+    return c.atendido === false;
   }
 
   var threads = {};
