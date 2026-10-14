@@ -98,6 +98,13 @@ const estado = {
   // "Pendências de backend" para o que ainda precisa existir na API.
   filtroMotivoFalha: null,
   filtroCriterio: null,
+  // Auditoria de colaboradores (Sucesso do Cliente): critério e falha do
+  // colaborador, e o resultado procurado nos filtros de critério.
+  filtroCriterioColaborador: null,
+  filtroFalhaColaborador: null,
+  filtroCriterioResultado: 'nao_atendido', // 'nao_atendido' | 'atendido' | 'avaliado'
+  // Opções devolvidas pelo endpoint de atendimentos (critérios e falhas registrados).
+  opcoesFiltro: null,
   filtroTipoAtendimento: null,
   filtroMotivoTransferencia: null,
   // Faixa de nota vinda do drill-down da Visão geral: { rotulo, min, max }.
@@ -923,7 +930,7 @@ function pintarVisaoSucesso(dados) {
     ordemCrescente: true,
     max: 100,
     corPorValor: v => v < LIMITE_CRITERIO_OK ? 'var(--vg-faixa-critico)' : 'var(--ae-serie-2)',
-    aoClicarItem: (d) => irParaAtendimentos({ criterio: d.criterio })
+    aoClicarItem: (d) => irParaAtendimentos({ criterio: d.criterio, criterioComponente: d.componente })
   });
 
   graficoBarrasH('g-falhas', falhaLista, 'motivo', 'quantidade', {
@@ -1017,7 +1024,7 @@ function pintarAcoesSucesso({ k, criterios, falhaLista, tipos, temNotaTipo, crit
   }
   const piorCriterio = (criterios || []).filter(c => c.taxa_aprovacao_pct != null).sort((a, b) => num(a.taxa_aprovacao_pct) - num(b.taxa_aprovacao_pct))[0];
   if (piorCriterio && num(piorCriterio.taxa_aprovacao_pct) < 100) {
-    acoes.push({ alto: num(piorCriterio.taxa_aprovacao_pct) < LIMITE_CRITERIO_OK, texto: 'Critério com pior desempenho: ' + piorCriterio.rotulo, apoio: nf1.format(num(piorCriterio.taxa_aprovacao_pct)) + '% de aprovação', patch: { criterio: piorCriterio.criterio } });
+    acoes.push({ alto: num(piorCriterio.taxa_aprovacao_pct) < LIMITE_CRITERIO_OK, texto: 'Critério com pior desempenho: ' + piorCriterio.rotulo, apoio: nf1.format(num(piorCriterio.taxa_aprovacao_pct)) + '% de aprovação', patch: { criterio: piorCriterio.criterio, criterioComponente: piorCriterio.componente } });
   }
   const topFalha = maiorPor(falhaLista, 'quantidade');
   if (topFalha && num(topFalha.quantidade) > 0) {
@@ -1088,7 +1095,7 @@ function pintarQualidade(dados) {
     campoSecundario: 'quantidade_avaliada',
     formatadorSecundario: v => nf.format(num(v)) + ' aval.',
     cor: 'var(--ae-serie-2)',
-    aoClicarItem: (d) => irParaAtendimentos({ criterio: d.criterio })
+    aoClicarItem: (d) => irParaAtendimentos({ criterio: d.criterio, criterioComponente: d.componente })
   });
   graficoBarrasH('q-falha', falhaCriticaLista, 'motivo', 'quantidade', {
     cor: 'var(--ae-serie-7)',
@@ -1151,7 +1158,8 @@ function badgeStatus(status) {
     resolvido: ['ae-badge--ok', 'Resolvido pela IA'],
     transferido: ['ae-badge--info', 'Transferido'],
     transferido_sem_atendimento: ['ae-badge--erro', 'Transferido e não atendido'],
-    em_andamento: ['ae-badge--alerta', 'Em andamento']
+    em_andamento: ['ae-badge--alerta', 'Em andamento'],
+    concluido: ['ae-badge--info', 'Concluído']
   };
   const b = mapa[status];
   return b ? `<span class="ae-badge ${b[0]}">${b[1]}</span>` : '<span class="vg-vazio-celula">—</span>';
@@ -1182,7 +1190,9 @@ function celulaAvaliacaoColaborador(av) {
   } else {
     corpo = av.auditado === false ? 'Aguardando auditoria' : '<span class="vg-vazio-celula">—</span>';
   }
-  return `<div class="vg-avaliacao-colaborador"><span class="vg-avaliacao-colaborador__rotulo">Colaborador — ${nome}</span>${corpo}</div>`;
+  const falha = av.falha_critica && !semFalhaCritica(av.falha_critica)
+    ? `<span class="vg-avaliacao-colaborador__falha"><span class="ae-badge ae-badge--erro">${escapeHtml(av.falha_critica)}</span></span>` : '';
+  return `<div class="vg-avaliacao-colaborador"><span class="vg-avaliacao-colaborador__rotulo">Colaborador — ${nome}</span>${falha}${corpo}</div>`;
 }
 
 // Critérios avaliados no atendimento: atendido (✓), não atendido (✕) ou não
@@ -1195,7 +1205,7 @@ function statusCriterio(c) {
   return null;
 }
 
-function blocoCriterios(titulo, criterios) {
+function blocoCriterios(titulo, criterios, criterioEmFoco) {
   const lista = (criterios || []).filter(c => c && c.criterio);
   if (!lista.length) return '';
   const aplicaveis = lista.filter(c => statusCriterio(c) !== null);
@@ -1205,7 +1215,7 @@ function blocoCriterios(titulo, criterios) {
     const classe = st === true ? 'ok' : (st === false ? 'nao' : 'na');
     const icone = st === true ? '✓' : (st === false ? '✕' : '–');
     const texto = st === true ? 'atendido' : (st === false ? 'não atendido' : 'não se aplica');
-    const foco = estado.filtroCriterio && estado.filtroCriterio === c.criterio ? ' is-foco' : '';
+    const foco = criterioEmFoco && criterioEmFoco === c.criterio ? ' is-foco' : '';
     const dica = c.criterio + ' — ' + texto + (c.nota != null && c.nota !== '' ? ' · nota ' + nf.format(num(c.nota)) : '') + (c.justificativa ? ' · ' + c.justificativa : '');
     return `<li class="vg-crit vg-crit--${classe}${foco}" title="${escapeHtml(dica)}">
         <span class="vg-crit__icone" aria-hidden="true">${icone}</span>
@@ -1239,10 +1249,10 @@ function celulaSinais(item) {
   const nomeColaborador = (av && av.responsavel) || (item.origem === 'colaboradores' ? item.responsavel : '');
   const grupos = [];
   if (componente !== 'ia') {
-    grupos.push(blocoCriterios('Colaborador' + (nomeColaborador ? ' — ' + nomeColaborador : ''), todos.filter(c => c.componente === 'humano')));
+    grupos.push(blocoCriterios('Colaborador' + (nomeColaborador ? ' — ' + nomeColaborador : ''), todos.filter(c => c.componente === 'humano'), estado.filtroCriterioColaborador));
   }
   if (componente !== 'humano') {
-    grupos.push(blocoCriterios(NOME_IA_AVALIADA[estado.agente] || 'IA', todos.filter(c => c.componente !== 'humano')));
+    grupos.push(blocoCriterios(NOME_IA_AVALIADA[estado.agente] || 'IA', todos.filter(c => c.componente !== 'humano'), estado.filtroCriterio));
   }
   const criterios = grupos.filter(Boolean).join('');
 
@@ -1263,7 +1273,8 @@ function renderizarTabela(dados) {
   const cols = colunas();
   pintarColgroup();
   $('tabela-cabecalho').innerHTML = '<tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
-  $('tabela-meta').textContent = num(dados.total) ? nf.format(num(dados.total)) + ' no filtro atual' : '';
+  $('tabela-meta').textContent = (num(dados.total) ? nf.format(num(dados.total)) + ' no filtro atual' : '') +
+    (dados.recorte === 'alertas_agora' ? (num(dados.total) ? ' · ' : '') + 'alertas ativos agora (o período não se aplica)' : '');
 
   if (!dados.itens || !dados.itens.length) {
     $('tabela-corpo').innerHTML = `<tr><td colspan="${cols.length}">${blocoVazio('Nenhum atendimento encontrado', 'Nenhum atendimento nesse período com esses filtros. Amplie o período ou remova um sinal.')}</td></tr>`;
@@ -1336,9 +1347,16 @@ function parametrosFiltro() {
     ...(estado.filtroFaixa ? { score_min: estado.filtroFaixa.min, score_max: estado.filtroFaixa.max } : {}),
     ...(estado.filtroMotivoFalha ? { motivo_falha: estado.filtroMotivoFalha } : {}),
     ...(estado.filtroCriterio ? { criterio: estado.filtroCriterio } : {}),
+    ...(estado.departamento === 'sucesso_cliente' && estado.filtroCriterioColaborador ? { criterio_colaborador: estado.filtroCriterioColaborador } : {}),
+    ...(estado.departamento === 'sucesso_cliente' && estado.filtroFalhaColaborador ? { falha_colaborador: estado.filtroFalhaColaborador } : {}),
+    ...(temFiltroCriterio() ? { criterio_resultado: estado.filtroCriterioResultado } : {}),
     ...(estado.filtroTipoAtendimento ? { tipo_atendimento: estado.filtroTipoAtendimento } : {}),
     ...(estado.filtroMotivoTransferencia ? { motivo_transferencia: estado.filtroMotivoTransferencia } : {})
   };
+}
+
+function temFiltroCriterio() {
+  return !!estado.filtroCriterio || (estado.departamento === 'sucesso_cliente' && !!estado.filtroCriterioColaborador);
 }
 
 function sinaisAtivos() {
@@ -1347,12 +1365,46 @@ function sinaisAtivos() {
   return out;
 }
 
+function erroApi(mensagem, status, rede) {
+  const e = new Error(mensagem);
+  e.status = status || 0;
+  e.rede = !!rede;
+  return e;
+}
+
+// Requisição ao n8n com o scope_token vigente. O token vale 30 min: é renovado
+// quando falta pouco para expirar e, se o n8n ainda assim responder 403, é
+// renovado uma vez e a requisição é repetida.
+async function requisicaoApi(montar) {
+  await garantirEscopoValido();
+  let resposta;
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    try {
+      resposta = await fetch(...montar(tokenEscopo()));
+    } catch (e) {
+      throw erroApi('a API não respondeu', 0, true);
+    }
+    if (resposta.status !== 403 || tentativa === 1) break;
+    if (!(await renovarEscopo())) break;
+  }
+  return resposta;
+}
+
 async function chamarApi(path, params) {
-  const query = new URLSearchParams({ ...params, api_key: API_KEY }).toString();
-  const resposta = await fetch(API_BASE.replace(/\/$/, '') + '/' + path + '?' + query, { method: 'GET' });
-  if (resposta.status === 403) throw new Error('sem permissão para este departamento');
-  if (!resposta.ok) throw new Error('Falha na API (' + resposta.status + ')');
+  const resposta = await requisicaoApi((token) => {
+    const query = new URLSearchParams({ ...params, scope_token: token, api_key: API_KEY }).toString();
+    return [API_BASE.replace(/\/$/, '') + '/' + path + '?' + query, { method: 'GET' }];
+  });
+  if (resposta.status === 403) throw erroApi('sem permissão para este departamento', 403);
+  if (!resposta.ok) throw erroApi('Falha na API (' + resposta.status + ')', resposta.status, [502, 503, 504].indexOf(resposta.status) !== -1);
   return resposta.json();
+}
+
+// Modo demonstração só quando a API não responde (rede/gateway) ou a sessão já
+// é de demonstração. Com sessão real, erro HTTP vira estado de erro na tela —
+// trocar por dados de exemplo mostraria resultados que não seguem os filtros.
+function deveUsarDemo(e) {
+  return estado.demo || !estado.permissoes || estado.permissoes.demo || (e && e.rede);
 }
 
 async function carregarMetricas(forcar) {
@@ -1366,6 +1418,14 @@ async function carregarMetricas(forcar) {
     pintarMetricas();
     marcarAtualizado();
   } catch (e) {
+    if (!deveUsarDemo(e)) {
+      const secao = estado.secao === 'qualidade' ? 'qualidade' : 'visao';
+      $('kpis-' + secao).innerHTML = '';
+      $('graficos-' + secao).innerHTML = `<div class="vg-card vg-card--largo">${blocoErro(e.message)}</div>`;
+      mostrarToast('Erro ao carregar as métricas: ' + e.message);
+      marcarCarregando(false);
+      return;
+    }
     ativarDemo('A API da Supervisora não respondeu (' + e.message + '), então o painel exibe um conjunto de exemplo. Nenhum número aqui é dado real da operação.');
     try {
       estado.dados = window.VigiaDemo.metricas(estado.agente, estado.periodos, { componente: estado.componente });
@@ -1403,42 +1463,21 @@ async function carregarAtendimentos() {
       ? window.VigiaDemo.atendimentos(estado.agente, { ...params, colaborador: estado.colaborador, base_data: estado.baseData })
       : await chamarApi('painel-vigia-engel-atendimentos', params);
 
-    if (estado.filtroMotivoFalha && estado.lista && estado.lista.itens) {
-      estado.lista.itens = estado.lista.itens.filter(item => {
-        const motivoFiltro = String(estado.filtroMotivoFalha).trim().toLowerCase();
-        const motivoAtendimento = String(item.falha_critica || '').trim().toLowerCase();
-        
-        const isNenhumaFiltro = motivoFiltro === 'nenhuma' || motivoFiltro === 'nenhum' || motivoFiltro === '';
-        const isNenhumaAtendimento = motivoAtendimento === 'nenhuma' || motivoAtendimento === 'nenhum' || motivoAtendimento === '';
-        
-        if (isNenhumaFiltro) {
-          return isNenhumaAtendimento;
-        }
-        return item.falha_critica === estado.filtroMotivoFalha;
-      });
-      if (estado.pagina === 1 && estado.lista.itens.length < estado.limite) {
-        estado.lista.total = estado.lista.itens.length;
-      }
-    }
-
-    // Mesmo padrão do motivo de falha: garante a faixa de nota na página
-    // atual enquanto o endpoint não aplica score_min/score_max.
-    if (estado.filtroFaixa && estado.lista && estado.lista.itens) {
-      const { min, max } = estado.filtroFaixa;
-      const antes = estado.lista.itens.length;
-      estado.lista.itens = estado.lista.itens.filter(item => {
-        if (item.score_efetividade == null) return false;
-        const v = Math.round(num(item.score_efetividade));
-        return v >= min && v <= max;
-      });
-      if (estado.lista.itens.length !== antes && estado.pagina === 1 && estado.lista.itens.length < estado.limite) {
-        estado.lista.total = estado.lista.itens.length;
-      }
-    }
-
+    // Motivo de falha, faixa de nota e demais filtros são aplicados pelo
+    // endpoint — total, contadores e paginação já chegam consistentes.
+    if (estado.lista && estado.lista.opcoes_filtro) popularOpcoesAtendimentos(estado.lista.opcoes_filtro);
     renderizarTabela(estado.lista);
     marcarAtualizado();
   } catch (e) {
+    if (!deveUsarDemo(e)) {
+      $('tabela-meta').textContent = '';
+      $('tabela-corpo').innerHTML = `<tr><td colspan="${colunas().length}">${blocoErro(e.message)}</td></tr>`;
+      $('paginacao').innerHTML = '';
+      mostrarToast('Erro ao carregar os atendimentos: ' + e.message);
+      marcarCarregando(false);
+      if (window.BX24 && BX24.fitWindow) BX24.fitWindow();
+      return;
+    }
     ativarDemo('A API da Supervisora não respondeu (' + e.message + '), então o painel exibe um conjunto de exemplo. Nenhum número aqui é dado real da operação.');
     try {
       estado.lista = window.VigiaDemo.atendimentos(estado.agente, { ...params, colaborador: estado.colaborador, base_data: estado.baseData });
@@ -1473,7 +1512,7 @@ async function abrirDrawer(sessionId, cliente) {
   try {
     const dados = estado.demo
       ? window.VigiaDemo.feedbacks(sessionId, totalFeedbacks(sessionId))
-      : await chamarApi('painel-vigia-engel-feedbacks', { session_id: sessionId, departamento: estado.departamento, scope_token: (estado.permissoes && estado.permissoes.scope_token) || '' });
+      : await chamarApi('painel-vigia-engel-feedbacks', { session_id: sessionId, departamento: estado.departamento });
     renderThread(dados.itens || []);
   } catch (e) {
     renderThread(window.VigiaDemo.feedbacks(sessionId, totalFeedbacks(sessionId)).itens);
@@ -1512,24 +1551,29 @@ async function enviarFeedback() {
     if (estado.demo) {
       window.VigiaDemo.novoFeedback(estado.sessaoDrawer, texto, autor);
     } else {
-      const resposta = await fetch(API_BASE + '/painel-vigia-engel-feedback', {
+      const sessao = estado.sessaoDrawer;
+      const resposta = await requisicaoApi((token) => [API_BASE + '/painel-vigia-engel-feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          session_id: estado.sessaoDrawer,
+          session_id: sessao,
           departamento: estado.departamento,
           texto, autor,
-          scope_token: (estado.permissoes && estado.permissoes.scope_token) || ''
+          scope_token: token
         })
-      });
-      if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
+      }]);
+      if (!resposta.ok) {
+        let motivo = '';
+        try { motivo = ((await resposta.json()) || {}).error || ''; } catch (e2) { /* corpo vazio */ }
+        throw new Error('HTTP ' + resposta.status + (motivo ? ' — ' + motivo : ''));
+      }
     }
     status.textContent = 'Feedback registrado. O histórico anterior foi preservado.';
     status.className = 'vg-status vg-status--ok';
     $('drawer-texto').value = '';
     const dados = estado.demo
       ? window.VigiaDemo.feedbacks(estado.sessaoDrawer, 0)
-      : await chamarApi('painel-vigia-engel-feedbacks', { session_id: estado.sessaoDrawer, departamento: estado.departamento, scope_token: (estado.permissoes && estado.permissoes.scope_token) || '' });
+      : await chamarApi('painel-vigia-engel-feedbacks', { session_id: estado.sessaoDrawer, departamento: estado.departamento });
     renderThread(dados.itens || []);
     const corpo = $('drawer-corpo');
     corpo.scrollTop = corpo.scrollHeight;
@@ -1553,6 +1597,10 @@ function marcarAtualizado() { $('atualizado').textContent = 'Atualizado às ' + 
 // Filtros
 // =============================================================================
 const ROTULOS_COLABORADOR = { ia: 'Somente IA', colaboradores: 'Somente colaboradores' };
+const ROTULOS_AVALIADO = { sim: 'Avaliados pela Supervisora', nao: 'Não avaliados', todos: 'Todos' };
+const ROTULOS_RESULTADO_CRITERIO = { nao_atendido: 'Não atendido', atendido: 'Atendido', avaliado: 'Avaliado (qualquer resultado)' };
+// Sinais que descrevem o estado atual (KPIs *_agora), não o período.
+const SINAIS_AGORA = ['janela_2h', 'sem_resposta_60min'];
 
 function rotuloStatus(valor) {
   const item = (dep().status || []).find(s => s[0] === valor);
@@ -1586,6 +1634,22 @@ function atualizarResumoFiltros() {
     pilulas.push(`<span class="vg-pilula">Critério: <b>${escapeHtml(estado.filtroCriterio)}</b>
       <button class="vg-pilula__x" type="button" data-limpar="criterio" aria-label="Remover filtro de critério">×</button></span>`);
   }
+  if (estado.departamento === 'sucesso_cliente' && estado.filtroCriterioColaborador) {
+    pilulas.push(`<span class="vg-pilula">Critério do colaborador: <b>${escapeHtml(estado.filtroCriterioColaborador)}</b>
+      <button class="vg-pilula__x" type="button" data-limpar="criterio-colaborador" aria-label="Remover filtro de critério do colaborador">×</button></span>`);
+  }
+  if (temFiltroCriterio() && estado.filtroCriterioResultado !== 'nao_atendido') {
+    pilulas.push(`<span class="vg-pilula">Resultado no critério: <b>${escapeHtml(ROTULOS_RESULTADO_CRITERIO[estado.filtroCriterioResultado])}</b>
+      <button class="vg-pilula__x" type="button" data-limpar="criterio-resultado" aria-label="Voltar resultado para não atendido">×</button></span>`);
+  }
+  if (estado.departamento === 'sucesso_cliente' && estado.filtroFalhaColaborador) {
+    pilulas.push(`<span class="vg-pilula">Falha do colaborador: <b>${escapeHtml(rotuloFalhaColaborador(estado.filtroFalhaColaborador))}</b>
+      <button class="vg-pilula__x" type="button" data-limpar="falha-colaborador" aria-label="Remover filtro de falha do colaborador">×</button></span>`);
+  }
+  if (estado.avaliado !== 'sim') {
+    pilulas.push(`<span class="vg-pilula">Avaliação: <b>${escapeHtml(ROTULOS_AVALIADO[estado.avaliado] || estado.avaliado)}</b>
+      <button class="vg-pilula__x" type="button" data-limpar="avaliado" aria-label="Voltar para avaliados pela Supervisora">×</button></span>`);
+  }
   if (estado.filtroMotivoFalha) {
     pilulas.push(`<span class="vg-pilula">Falha: <b>${escapeHtml(estado.filtroMotivoFalha)}</b>
       <button class="vg-pilula__x" type="button" data-limpar="motivo-falha" aria-label="Remover filtro de falha">×</button></span>`);
@@ -1616,6 +1680,11 @@ function atualizarResumoFiltros() {
   $('btn-periodo').classList.toggle('is-alterado', !estado.periodoPreset);
   $('filtro-componente').classList.toggle('is-alterado', estado.componente !== 'ambos');
   $('filtro-avaliado').classList.toggle('is-alterado', estado.avaliado !== 'sim');
+  $('filtro-criterio-colaborador').classList.toggle('is-alterado', !!estado.filtroCriterioColaborador);
+  $('filtro-falha-colaborador').classList.toggle('is-alterado', !!estado.filtroFalhaColaborador);
+  $('filtro-criterio-resultado').classList.toggle('is-alterado', estado.filtroCriterioResultado !== 'nao_atendido');
+  // "Resultado no critério" só faz sentido com algum critério escolhido.
+  $('filtro-criterio-resultado-wrap').hidden = !temFiltroCriterio();
 
   // Contador do botão "Mais filtros": quantos filtros secundários estão ativos.
   const secundarios = [
@@ -1623,7 +1692,10 @@ function atualizarResumoFiltros() {
     !!estado.filtroCriterio,
     !!estado.filtroMotivoFalha,
     estado.avaliado !== 'sim',
-    estado.departamento === 'sucesso_cliente' && estado.componente !== 'ambos'
+    estado.departamento === 'sucesso_cliente' && estado.componente !== 'ambos',
+    estado.departamento === 'sucesso_cliente' && !!estado.filtroCriterioColaborador,
+    estado.departamento === 'sucesso_cliente' && !!estado.filtroFalhaColaborador,
+    temFiltroCriterio() && estado.filtroCriterioResultado !== 'nao_atendido'
   ].filter(Boolean).length;
   $('mais-filtros-contador').hidden = !secundarios;
   $('mais-filtros-contador').textContent = secundarios;
@@ -1635,20 +1707,35 @@ function sincronizarSelectsFiltro() {
   $('filtro-criterio').value = estado.filtroCriterio || '';
   $('filtro-motivo-falha').value = estado.filtroMotivoFalha || '';
   $('filtro-componente').value = estado.componente;
+  $('filtro-avaliado').value = estado.avaliado;
+  $('filtro-criterio-colaborador').value = estado.filtroCriterioColaborador || '';
+  $('filtro-falha-colaborador').value = estado.filtroFalhaColaborador || '';
+  $('filtro-criterio-resultado').value = estado.filtroCriterioResultado;
 }
 
 function irParaAtendimentos(patch) {
   Object.keys(estado.sinais).forEach(k => { estado.sinais[k] = false; });
   estado.filtroMotivoFalha = null;
   estado.filtroCriterio = null;
+  estado.filtroCriterioColaborador = null;
+  estado.filtroFalhaColaborador = null;
+  estado.filtroCriterioResultado = 'nao_atendido';
   estado.filtroTipoAtendimento = null;
   estado.filtroMotivoTransferencia = null;
   estado.filtroFaixa = null;
+  // KPIs "agora" (janela oficial, sem resposta +1h) contam todo atendimento em
+  // aberto, sem status nem avaliação: o drill-down replica esse recorte.
+  if (patch.sinal && SINAIS_AGORA.indexOf(patch.sinal) !== -1) {
+    estado.status = 'todos';
+    estado.avaliado = 'todos';
+  }
   if (patch.faixa) estado.filtroFaixa = patch.faixa;
   if (patch.status !== undefined) estado.status = patch.status;
   if (patch.sinal) estado.sinais[patch.sinal] = true;
   if (patch.motivoFalha) estado.filtroMotivoFalha = patch.motivoFalha;
-  if (patch.criterio) estado.filtroCriterio = patch.criterio;
+  // Critério da auditoria humana vai para o filtro do colaborador.
+  if (patch.criterio && patch.criterioComponente === 'humano' && estado.departamento === 'sucesso_cliente') estado.filtroCriterioColaborador = patch.criterio;
+  else if (patch.criterio) estado.filtroCriterio = patch.criterio;
   if (patch.tipoAtendimento) estado.filtroTipoAtendimento = patch.tipoAtendimento;
   if (patch.motivoTransferencia) estado.filtroMotivoTransferencia = patch.motivoTransferencia;
   estado.pagina = 1;
@@ -1657,19 +1744,37 @@ function irParaAtendimentos(patch) {
   selecionarSecao('auditoria');
 }
 
+function preencherSelect(sel, rotuloTodos, valores, atual, extras) {
+  const lista = Array.from(new Set(valores.filter(Boolean)));
+  if (atual && atual !== '__qualquer__' && lista.indexOf(atual) === -1) lista.push(atual);
+  sel.innerHTML = `<option value="">${escapeHtml(rotuloTodos)}</option>` +
+    (extras || []).map(o => `<option value="${escapeHtml(o[0])}">${escapeHtml(o[1])}</option>`).join('') +
+    lista.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  sel.value = atual || '';
+}
+
 function popularFiltrosDinamicos(dados) {
-  const criterios = Array.from(new Set((dados.criterios || []).map(c => c.criterio).filter(Boolean)));
-  const motivos = Array.from(new Set((dados.falha_critica || []).map(f => f.motivo).filter(m => m && !semFalhaCritica(m))));
-  const selCriterio = $('filtro-criterio');
-  const selMotivo = $('filtro-motivo-falha');
-  const atualCriterio = estado.filtroCriterio;
-  const atualMotivo = estado.filtroMotivoFalha;
-  selCriterio.innerHTML = '<option value="">Todos os critérios</option>' +
-    criterios.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-  selMotivo.innerHTML = '<option value="">Todos os motivos de falha</option>' +
-    motivos.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
-  selCriterio.value = atualCriterio || '';
-  selMotivo.value = atualMotivo || '';
+  const criterios = (dados.criterios || []).filter(c => !c.componente || c.componente === 'ia').map(c => c.criterio);
+  const motivos = (dados.falha_critica || []).map(f => f.motivo).filter(m => m && !semFalhaCritica(m));
+  preencherSelect($('filtro-criterio'), 'Todos os critérios', criterios, estado.filtroCriterio);
+  preencherSelect($('filtro-motivo-falha'), 'Todos os motivos de falha', motivos, estado.filtroMotivoFalha);
+}
+
+// Opções vindas do endpoint de atendimentos: critérios e falhas efetivamente
+// registrados no período, inclusive os da auditoria de colaboradores. Assim a
+// aba Atendimentos tem os filtros preenchidos mesmo sem passar pela Visão geral.
+function popularOpcoesAtendimentos(opcoes) {
+  estado.opcoesFiltro = opcoes;
+  const motivo = (l) => (l || []).map(f => f.motivo).filter(m => m && !semFalhaCritica(m));
+  preencherSelect($('filtro-criterio'), 'Todos os critérios', opcoes.criterios_ia || [], estado.filtroCriterio);
+  preencherSelect($('filtro-motivo-falha'), 'Todos os motivos de falha', motivo(opcoes.falhas_ia), estado.filtroMotivoFalha);
+  preencherSelect($('filtro-criterio-colaborador'), 'Todos os critérios', opcoes.criterios_colaborador || [], estado.filtroCriterioColaborador);
+  preencherSelect($('filtro-falha-colaborador'), 'Todas as situações', motivo(opcoes.falhas_colaborador), estado.filtroFalhaColaborador,
+    [['__qualquer__', 'Com qualquer falha registrada']]);
+}
+
+function rotuloFalhaColaborador(valor) {
+  return valor === '__qualquer__' ? 'qualquer falha registrada' : valor;
 }
 
 function aplicarPreset(chave, semRecarregar) {
@@ -1842,20 +1947,74 @@ async function carregarPermissoes() {
     return window.VigiaDemo.permissoes;
   }
   try {
-    const resposta = await fetch(URL_PERMISSOES, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        memberId: auth.member_id, domain: auth.domain,
-        accessToken: auth.access_token, refreshToken: auth.refresh_token, expiresIn: auth.expires_in
-      })
-    });
-    if (!resposta.ok) throw new Error('HTTP ' + resposta.status);
-    return resposta.json();
+    return await solicitarPermissoes(auth);
   } catch (e) {
     ativarDemo('Não foi possível confirmar suas permissões na API da Supervisora, então o painel exibe um conjunto de exemplo. Nenhum número aqui é dado real da operação.');
     return window.VigiaDemo.permissoes;
   }
+}
+
+async function solicitarPermissoes(auth) {
+  const resposta = await fetch(URL_PERMISSOES, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      memberId: auth.member_id, domain: auth.domain,
+      accessToken: auth.access_token, refreshToken: auth.refresh_token, expiresIn: auth.expires_in
+    })
+  });
+  if (!resposta.ok) throw erroApi('HTTP ' + resposta.status, resposta.status);
+  return resposta.json();
+}
+
+// Token de acesso do Bitrix24 renovado (o access_token vale ~1h).
+function authBitrixRenovado() {
+  return new Promise((resolve) => {
+    try {
+      if (window.BX24 && typeof BX24.refreshAuth === 'function') {
+        BX24.refreshAuth((auth) => resolve(auth || authBitrix()));
+        return;
+      }
+    } catch (e) { /* segue com a auth atual */ }
+    resolve(authBitrix());
+  });
+}
+
+function tokenEscopo() {
+  return (estado.permissoes && estado.permissoes.scope_token) || '';
+}
+
+let renovacaoEscopo = null;
+// Renova o scope_token (30 min) chamando /api/permissoes de novo. Uma única
+// renovação por vez; se o access_token do Bitrix24 expirou, renova-o antes.
+function renovarEscopo() {
+  if (!estado.permissoes || estado.permissoes.demo || estado.demo) return Promise.resolve(false);
+  if (!renovacaoEscopo) {
+    renovacaoEscopo = (async () => {
+      let auth = authBitrix();
+      if (!auth || !auth.member_id) return false;
+      let dados;
+      try {
+        dados = await solicitarPermissoes(auth);
+      } catch (e) {
+        if (e.status !== 401) return false;
+        auth = await authBitrixRenovado();
+        if (!auth || !auth.member_id) return false;
+        dados = await solicitarPermissoes(auth);
+      }
+      if (!dados || !dados.scope_token) return false;
+      estado.permissoes.scope_token = dados.scope_token;
+      estado.permissoes.expira_em = dados.expira_em;
+      if (typeof dados.pode_dar_feedback === 'boolean') estado.permissoes.pode_dar_feedback = dados.pode_dar_feedback;
+      return true;
+    })().catch(() => false).finally(() => { renovacaoEscopo = null; });
+  }
+  return renovacaoEscopo;
+}
+
+async function garantirEscopoValido() {
+  const expira = estado.permissoes && estado.permissoes.expira_em ? Date.parse(estado.permissoes.expira_em) : NaN;
+  if (Number.isFinite(expira) && expira - Date.now() < 2 * 60 * 1000) await renovarEscopo();
 }
 
 function departamentosPermitidos() {
@@ -1892,6 +2051,8 @@ function pintarFiltrosDoDepartamento() {
   $('filtro-base-data').value = estado.baseData;
   $('filtro-componente-wrap').hidden = estado.departamento !== 'sucesso_cliente';
   $('filtro-componente').value = estado.componente;
+  // A auditoria de colaboradores existe só em Sucesso do Cliente.
+  $('filtros-colaborador-wrap').hidden = estado.departamento !== 'sucesso_cliente';
   const statusDisponiveis = dep().status.filter(s => !(estado.baseData === 'conclusao' && s[0] === 'em_andamento'));
   if (estado.status === 'em_andamento' && estado.baseData === 'conclusao') estado.status = 'todos';
   $('filtro-status').innerHTML = statusDisponiveis.map(s =>
@@ -1908,6 +2069,10 @@ function selecionarDepartamento(departamento) {
   Object.keys(estado.sinais).forEach(k => { estado.sinais[k] = false; });
   estado.filtroMotivoFalha = null;
   estado.filtroCriterio = null;
+  estado.filtroCriterioColaborador = null;
+  estado.filtroFalhaColaborador = null;
+  estado.filtroCriterioResultado = 'nao_atendido';
+  estado.opcoesFiltro = null;
   estado.filtroTipoAtendimento = null;
   estado.filtroMotivoTransferencia = null;
   estado.filtroFaixa = null;
@@ -1989,6 +2154,18 @@ function ligarNavegacao() {
     estado.filtroMotivoFalha = e.target.value || null;
     recarregarPorFiltro();
   });
+  $('filtro-criterio-colaborador').addEventListener('change', (e) => {
+    estado.filtroCriterioColaborador = e.target.value || null;
+    recarregarPorFiltro();
+  });
+  $('filtro-falha-colaborador').addEventListener('change', (e) => {
+    estado.filtroFalhaColaborador = e.target.value || null;
+    recarregarPorFiltro();
+  });
+  $('filtro-criterio-resultado').addEventListener('change', (e) => {
+    estado.filtroCriterioResultado = e.target.value || 'nao_atendido';
+    recarregarPorFiltro();
+  });
   $('filtro-componente').addEventListener('change', (e) => {
     estado.componente = e.target.value || 'ambos';
     recarregarPorFiltro();
@@ -2013,6 +2190,9 @@ function ligarNavegacao() {
     if (qual === 'periodo' || qual === 'tudo') aplicarPreset('hoje', true);
     if (qual === 'criterio' || qual === 'tudo') { estado.filtroCriterio = null; $('filtro-criterio').value = ''; }
     if (qual === 'motivo-falha' || qual === 'tudo') { estado.filtroMotivoFalha = null; $('filtro-motivo-falha').value = ''; }
+    if (qual === 'criterio-colaborador' || qual === 'tudo') { estado.filtroCriterioColaborador = null; $('filtro-criterio-colaborador').value = ''; }
+    if (qual === 'falha-colaborador' || qual === 'tudo') { estado.filtroFalhaColaborador = null; $('filtro-falha-colaborador').value = ''; }
+    if (qual === 'criterio-resultado' || qual === 'tudo') { estado.filtroCriterioResultado = 'nao_atendido'; $('filtro-criterio-resultado').value = 'nao_atendido'; }
     if (qual === 'tipo-atendimento' || qual === 'tudo') estado.filtroTipoAtendimento = null;
     if (qual === 'motivo-transferencia' || qual === 'tudo') estado.filtroMotivoTransferencia = null;
     if (qual === 'faixa' || qual === 'tudo') estado.filtroFaixa = null;
