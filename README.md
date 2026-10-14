@@ -31,8 +31,10 @@ Departamento (só os permitidos)  →  Comercial          |  Sucesso do Cliente
 IA supervisora                   →  SDR · Fechamento   |  Sucesso do Cliente
 Abas                             →  Visão geral · Qualidade da IA · Atendimentos
 Filtros principais (globais)     →  Período · Data de referência · Responsável (colaborador/IA)
-Mais filtros (globais)           →  Status · Critério · Motivo de falha · Avaliado pela Supervisora
+Mais filtros (globais)           →  Status · Critério da IA · Motivo de falha da IA · Avaliado pela Supervisora
                                     · Componente avaliado (só Sucesso do Cliente)
+                                    · Auditoria do colaborador: critério e falha (só Sucesso do Cliente)
+                                    · Resultado no critério (aparece quando há critério escolhido)
 ```
 
 Cada IA tem a sua Visão geral:
@@ -176,10 +178,48 @@ eles a Visão geral cai no comportamento descrito entre parênteses.
 
 Query adicional: `limite`, `pagina`, `base_data` (`criacao` | `conclusao` — em
 qual data o período se apoia; só Sucesso do Cliente) e os sinais de auditoria
-`sem_resposta_60min`, `falha_ia`, `janela_2h`, `com_feedback` — booleanos,
-combináveis entre si e com os filtros globais. O drill-down por faixa de nota
-envia `score_min` e `score_max` (inclusivos, 0–100); até o endpoint aplicá-los,
-o painel filtra a página carregada, no mesmo padrão do motivo de falha.
+`sem_resposta_60min`, `falha_ia`, `janela_2h`, `insatisfacao`, `com_feedback` —
+booleanos, combináveis entre si e com os filtros globais. O drill-down por faixa
+de nota envia `score_min` e `score_max` (inclusivos, 0–100, sobre a nota
+arredondada da coluna Score). O endpoint aplica todos os filtros — total,
+contadores e paginação já chegam consistentes; o painel não recorta a página.
+
+Regras (v3 do endpoint):
+
+- Todo filtro vale nos três modos de origem (Colaboradores e IA, Somente IA,
+  Somente colaboradores). Em Sucesso do Cliente + Somente colaboradores a fonte é
+  a auditoria humana (`vw_qualidade_humana_sucesso_cliente`) e os dados de sessão
+  (status, sinais, tipo, falha da IA) vêm do atendimento correspondente.
+- Recorte de tempo: o período selecionado. Os sinais **agora** (`janela_2h`,
+  `sem_resposta_60min`) seguem os KPIs `*_agora`: atendimentos em aberto,
+  independentemente do período — a resposta traz `"recorte": "alertas_agora"`.
+- Contador de cada chip = quantos atendimentos a lista teria com o chip ligado.
+- Com filtro de status ativo, o badge da linha é o status filtrado; sem filtro,
+  vale a ordem de precedência do departamento (`concluido` quando nenhum se aplica).
+
+Filtros da auditoria (critérios e falhas):
+
+| Parâmetro | Valores | Aplica sobre |
+|---|---|---|
+| `criterio` | nome do critério da IA | nota do critério (IA), só em atendimento avaliado |
+| `criterio_colaborador` | `Objetividade` · `Simplicidade` · `Velocidade` · `Previsibilidade` | nota do critério na auditoria humana, só com `auditado = true` |
+| `criterio_resultado` | `nao_atendido` (padrão) · `atendido` · `avaliado` | os dois filtros de critério; corte de aprovação 90, o mesmo do ✓/✕ da coluna Sinais |
+| `motivo_falha` | `falha_critica` da IA | igualdade exata |
+| `falha_colaborador` | `categoria_erro_humano` ou `__qualquer__` | igualdade exata; `__qualquer__` = qualquer valor diferente de vazio/`nenhuma` |
+
+Nome de critério desconhecido devolve lista vazia (não é ignorado).
+
+```jsonc
+{
+  "recorte": "periodo|alertas_agora",
+  // opções dos selects, só por departamento + período (independem dos demais filtros)
+  "opcoes_filtro": {
+    "criterios_ia": ["…"], "criterios_colaborador": ["…"],
+    "falhas_ia": [{ "motivo": "…", "quantidade": 0 }],
+    "falhas_colaborador": [{ "motivo": "…", "quantidade": 0 }]
+  }
+}
+```
 
 ```jsonc
 {
@@ -232,7 +272,12 @@ no tooltip do critério.
   cronológica, nunca truncado.
 - `POST /painel-vigia-engel-feedback`
   → `{ session_id, departamento, texto, autor, scope_token }`. Sempre
-  **append**: insere uma linha nova, nunca altera as anteriores.
+  **append**: insere uma linha nova, nunca altera as anteriores. O
+  `scope_token` é validado pelo mesmo código dos endpoints GET.
+
+O `scope_token` vale 30 min. O painel renova o token quando faltam menos de 2
+min e, se um endpoint responder 403, renova uma vez (`/api/permissoes`, com
+`BX24.refreshAuth` quando o access_token do Bitrix24 venceu) e repete a chamada.
 
 Na listagem, a coluna mostra a contagem e o trecho do último feedback; o
 drawer abre o histórico completo com campo para nova mensagem. A coluna e o
@@ -241,8 +286,10 @@ Sucesso do Cliente.
 
 ## Modo demonstração
 
-Sem sessão Bitrix24, com `?demo=1`, ou quando a API não responde, o painel
-carrega `demo-data.js` e exibe o aviso "Dados de demonstração". O formato é
+Sem sessão Bitrix24, com `?demo=1`, ou quando a API não responde (falha de rede
+ou 502/503/504), o painel carrega `demo-data.js` e exibe o aviso "Dados de
+demonstração". Com sessão real, erro HTTP do endpoint (403, 500…) aparece como
+estado de erro na tela — dados de exemplo não seguiriam os filtros. O formato é
 idêntico ao contrato acima — trocar por dados reais não muda o `app.js`.
 
 ## Pendências para produção
@@ -256,5 +303,7 @@ idêntico ao contrato acima — trocar por dados reais não muda o `app.js`.
   seguir com origem (IA x colaboradores), como está.
 - Visão geral de Sucesso do Cliente: publicar no endpoint de métricas o
   parâmetro `componente` e os campos opcionais da seção "Extensões"; no de
-  atendimentos, `componente`, `score_min` e `score_max`, além de `criterios`
-  e `avaliacao_colaborador.criterios` em cada item.
+  atendimentos, `componente`.
+- Métricas em Sucesso do Cliente + Somente colaboradores ainda definem
+  "colaborador" por `resolved_by`/`had_human`, enquanto a lista usa a auditoria
+  humana; os KPIs desse recorte podem diferir do total da lista.
