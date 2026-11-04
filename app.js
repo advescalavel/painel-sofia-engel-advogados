@@ -64,6 +64,19 @@ const NOME_IA_AVALIADA = {
 
 const nf = new Intl.NumberFormat('pt-BR');
 const nf1 = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
+const nf2 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// Nota do COLABORADOR (Sucesso do Cliente). Metodologia nova: 0 a 4 (escala_score = 4), 2 casas decimais.
+// Avaliações antigas seguem em 0-100 (escala_score = 100) e não são recalculadas. A nota da IA é sempre 0-100.
+const ESCALA_NOVA_COLABORADOR = 4;
+function escalaDaNota(escala) { return Number(escala) === ESCALA_NOVA_COLABORADOR ? ESCALA_NOVA_COLABORADOR : 100; }
+function pctDaNota(valor, escala) { return Math.max(0, Math.min(100, num(valor) / escalaDaNota(escala) * 100)); }
+function notaFormatada(valor, escala) { return escalaDaNota(escala) === ESCALA_NOVA_COLABORADOR ? nf2.format(num(valor)) : nf.format(num(valor)); }
+// Faixas gerenciais do colaborador na escala 0-4 (mesma proporção das faixas 0-100: 50% / 70% / 85%).
+function classificacaoColaborador(valor, escala) {
+  const p = pctDaNota(valor, escala);
+  return p >= 85 ? 'Excelente' : p >= 70 ? 'Bom' : p >= 50 ? 'Regular' : 'Crítico';
+}
 const df = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 const hf = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const NOMES_MES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -1108,7 +1121,7 @@ function pintarQualidade(dados) {
 // =============================================================================
 const LARGURAS_COLUNA = {
   'Cliente': 16, 'Responsável': 10, 'Tipo': 8, 'Criado em': 9, 'Concluído em': 9,
-  'Status': 8, 'Score': 6, 'Avaliação da Supervisora': 24, 'Sinais': 15, 'Feedbacks (Laila)': 10
+  'Status': 8, 'Score': 7, 'Avaliação da Supervisora': 23, 'Sinais': 15, 'Feedbacks (Laila)': 10
 };
 
 function pintarColgroup() {
@@ -1168,11 +1181,22 @@ function badgeStatus(status) {
 function celulaScore(item) {
   if (item.sem_avaliacao_humana) return '<span class="vg-vazio-celula">Sem avaliação humana disponível</span>';
   if (item.score_efetividade == null) {
+    if (item.aguardando_prazo === true) return '<span class="vg-vazio-celula" title="Há pendência com o colaborador ainda dentro do prazo de resposta (1 dia útil, seg-sex 08h-17h). A nota sai quando o prazo vencer ou ele responder.">Aguardando prazo de resposta</span>';
     return item.auditado === false
       ? '<span class="vg-vazio-celula">Aguardando auditoria</span>'
       : '<span class="vg-vazio-celula">—</span>';
   }
   const v = num(item.score_efetividade);
+  // escala_score só existe na nota do colaborador; a nota da IA é sempre 0-100.
+  if (item.escala_score != null) {
+    const nova = escalaDaNota(item.escala_score) === ESCALA_NOVA_COLABORADOR;
+    const dica = nova ? `Nota do colaborador: ${nf2.format(v)} de 4 · ${classificacaoColaborador(v, item.escala_score)}`
+      : 'Nota do colaborador na metodologia anterior (0 a 100) — não comparável com a nova nota (0 a 4)';
+    return `<span class="vg-score ${nova ? 'vg-score--4pts' : 'vg-score--legado'}" title="${escapeHtml(dica)}">
+      <span class="vg-score__valor">${notaFormatada(v, item.escala_score)}${nova ? '<span class="vg-score__max"> / 4</span>' : ''}</span>
+      <span class="vg-score__medidor"><i style="width:${pctDaNota(v, item.escala_score)}%"></i></span>
+      ${nova ? '' : '<span class="vg-score__legado">escala anterior</span>'}</span>`;
+  }
   return `<span class="vg-score"><span class="vg-score__valor">${nf.format(v)}</span>
     <span class="vg-score__medidor"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></span></span>`;
 }
@@ -1186,7 +1210,11 @@ function celulaAvaliacaoColaborador(av) {
   const nome = escapeHtml(av.responsavel || 'Colaborador');
   let corpo;
   if (av.score_efetividade != null) {
-    corpo = `<b>${nf.format(num(av.score_efetividade))}</b> — ${av.justificativa_avaliacao ? escapeHtml(av.justificativa_avaliacao) : '<span class="vg-vazio-celula">sem justificativa</span>'}`;
+    const nova = escalaDaNota(av.escala_score) === ESCALA_NOVA_COLABORADOR;
+    const rotuloNota = `<b title="${nova ? 'Nota de 0 a 4' : 'Metodologia anterior (0 a 100)'}">${notaFormatada(av.score_efetividade, av.escala_score)}${nova ? ' / 4' : ''}</b>`;
+    corpo = `${rotuloNota} — ${av.justificativa_avaliacao ? escapeHtml(av.justificativa_avaliacao) : '<span class="vg-vazio-celula">sem justificativa</span>'}`;
+  } else if (av.aguardando_prazo === true) {
+    corpo = 'Aguardando prazo de resposta';
   } else {
     corpo = av.auditado === false ? 'Aguardando auditoria' : '<span class="vg-vazio-celula">—</span>';
   }
