@@ -60,7 +60,7 @@ window.VigiaDemo = (function () {
   // Critérios da auditoria humana (colaboradores de Sucesso do Cliente) —
   // nomes ilustrativos, só para exercitar o filtro "Componente avaliado".
   // Mesmos nomes da auditoria humana real (vw_qualidade_humana_sucesso_cliente).
-  var CRITERIOS_HUMANO = ['Objetividade', 'Simplicidade', 'Velocidade', 'Previsibilidade'];
+  var CRITERIOS_HUMANO = ['Objetividade', 'Simplicidade', 'Velocidade', 'Previsibilidade', 'Coerência do atendimento', 'Checagem de entendimento'];
   var FALHAS_COLAB = ['Demora no retorno', 'Não registrou o encaminhamento', 'Informação divergente'];
   var NOMES = ['Ana Beatriz Moraes', 'Carlos Eduardo Lima', 'Fernanda Ribeiro', 'Marcos Vinícius Alves', 'Juliana Prado', 'Rafael Antunes', 'Patrícia Nogueira', 'Diego Camargo', 'Larissa Bittencourt', 'Otávio Menezes', 'Simone Vasconcelos', 'Thiago Barreto', 'Camila Deodoro', 'Henrique Salles', 'Vanessa Kuhn', 'Rodrigo Peixoto', 'Bianca Almeida', 'Leandro Furtado', 'Mariana Bastos', 'Gustavo Pinheiro', 'Renata Sampaio', 'Felipe Andrade'];
   var COLABS_COM = ['Bruno Tavares', 'Cíntia Rocha', 'Eduardo Prado'];
@@ -282,12 +282,15 @@ window.VigiaDemo = (function () {
         if (!ehIa || item.status === 'transferido') {
           var colab = COLABS_SC[i % 3];
           var critsHumano = criteriosDoItem(CRITERIOS_HUMANO, r, false);
-          var notaColab = Math.round(100 * critsHumano.filter(function (c) { return c.atendido; }).length / critsHumano.filter(function (c) { return c.atendido !== null; }).length || 0);
+          // Nova metodologia: nota de 0 a 4 (2 casas). Apenas por demonstração, vem da taxa de critérios atendidos.
+          var pctColab = 100 * critsHumano.filter(function (c) { return c.atendido; }).length / (critsHumano.filter(function (c) { return c.atendido !== null; }).length || 1);
+          var notaColab = Math.round(pctColab / 100 * 4 * 100) / 100;
           item.avaliacao_colaborador = {
             responsavel: colab,
             score_efetividade: notaColab,
-            justificativa_avaliacao: notaColab >= 70 ? 'Retorno no prazo e demanda resolvida.' : 'Demorou a responder e não registrou o encaminhamento.',
-            falha_critica: notaColab < 70 ? FALHAS_COLAB[i % FALHAS_COLAB.length] : null,
+            escala_score: 4,
+            justificativa_avaliacao: pctColab >= 70 ? 'Retorno no prazo e demanda resolvida.' : 'Demorou a responder e não registrou o encaminhamento.',
+            falha_critica: pctColab < 70 ? FALHAS_COLAB[i % FALHAS_COLAB.length] : null,
             auditado: true,
             criterios: critsHumano
           };
@@ -305,6 +308,14 @@ window.VigiaDemo = (function () {
       itens.push(item);
     }
 
+    // Espelha o backend: em "Somente colaboradores" (Sucesso do Cliente) a nota da linha é a do colaborador
+    // (nova metodologia, 0 a 4); nos demais modos a nota da linha é a da IA (0 a 100).
+    if (isSC && params.colaborador === 'colaboradores') {
+      itens = itens.map(function (a) {
+        var av = a.avaliacao_colaborador;
+        return Object.assign({}, a, { score_efetividade: av ? av.score_efetividade : null, escala_score: 4, auditado: !!av });
+      });
+    }
     var filtrados = itens.filter(function (a) {
       if (params.sem_resposta_60min && !a.sem_resposta_60min) return false;
       if (params.falha_ia && !a.falha_critica) return false;
@@ -314,8 +325,10 @@ window.VigiaDemo = (function () {
       if (params.motivo_falha && a.falha_critica !== params.motivo_falha) return false;
       if (params.tipo_atendimento && a.tipo_atendimento !== params.tipo_atendimento) return false;
       if (params.motivo_transferencia && a.motivo_transferencia !== params.motivo_transferencia) return false;
-      if (params.score_min != null && (a.score_efetividade == null || a.score_efetividade < Number(params.score_min))) return false;
-      if (params.score_max != null && (a.score_efetividade == null || a.score_efetividade > Number(params.score_max))) return false;
+      // Faixa sempre em % da nota máxima (a nota do colaborador é 0-4; a da IA, 0-100).
+      var notaPct = a.score_efetividade == null ? null : (a.escala_score === 4 ? a.score_efetividade * 25 : a.score_efetividade);
+      if (params.score_min != null && (notaPct == null || notaPct < Number(params.score_min))) return false;
+      if (params.score_max != null && (notaPct == null || notaPct >= Number(params.score_max) + 1)) return false;
       if (params.status && params.status !== 'todos') {
         if (params.status === 'concluido') {
           if (a.status === 'em_andamento') return false;
