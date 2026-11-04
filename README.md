@@ -174,14 +174,42 @@ eles a Visão geral cai no comportamento descrito entre parênteses.
 }
 ```
 
+## Nova metodologia do colaborador (Sucesso do Cliente) — vigia-cs-v8.0
+
+A nota do **colaborador** passa a ter **máximo de 4 pontos**, calculada por 6 critérios. A nota da **IA (Sofia)
+segue em 0–100**, sem alteração.
+
+| Critério | Peso | Aplicabilidade |
+|---|---|---|
+| Objetividade | 15% | só quando o colaborador repassou andamento processual |
+| Simplicidade | 10% | quando o colaborador explicou algo ao cliente |
+| Velocidade | 30% | calculada pelo sistema: segunda a sexta, 08h–17h, prazo de 1 dia útil |
+| Previsibilidade | 15% | só quando houve repasse de andamento em que cabe estimativa de prazo |
+| Coerência do atendimento | 20% | quando houve dúvida/solicitação que coube ao colaborador |
+| Checagem de entendimento | 10% | quando o colaborador transmitiu informação que exigia compreensão |
+
+- Cada critério vale 0–100; a nota final é `Σ(nota × peso) ÷ Σ(pesos aplicáveis) ÷ 100 × 4`, com 2 casas.
+  Critério **não aplicável** (`null`) sai do cálculo e os pesos são redistribuídos; **falha** é nota baixa.
+- Velocidade por espera: dentro do prazo = 100; até 2× o prazo = 50; acima disso ou sem resposta = 0.
+  Caso urgente: 100 só até 4 h úteis. Sessão com pendência ainda dentro do prazo fica "Aguardando prazo de
+  resposta" (`aguardando_prazo: true`) e é reavaliada quando o prazo vence.
+- Transferido e sem resposta humana: entra na nota (só Velocidade) **se havia pendência**; sem pendência fica fora.
+- Faixas (mesma proporção das da IA): Excelente ≥ 3,40 · Bom ≥ 2,80 · Regular ≥ 2,00 · Crítico < 2,00.
+- **Histórico:** avaliações anteriores não foram recalculadas. Cada linha traz `escala_score` (`4` = nova, `100` =
+  anterior); o painel mostra "x,xx / 4" ou o valor antigo com a marca "escala anterior". Não comparar as duas.
+  Sessões abertas e já avaliadas que forem reavaliadas depois da atualização passam para a nova metodologia.
+
+Campos novos no item da lista (modo colaboradores e `avaliacao_colaborador`): `escala_score` e `aguardando_prazo`.
+
 ### `GET /painel-vigia-engel-atendimentos`
 
 Query adicional: `limite`, `pagina`, `base_data` (`criacao` | `conclusao` — em
 qual data o período se apoia; só Sucesso do Cliente) e os sinais de auditoria
 `sem_resposta_60min`, `falha_ia`, `janela_2h`, `insatisfacao`, `com_feedback` —
 booleanos, combináveis entre si e com os filtros globais. O drill-down por faixa
-de nota envia `score_min` e `score_max` (inclusivos, 0–100, sobre a nota
-arredondada da coluna Score). O endpoint aplica todos os filtros — total,
+de nota envia `score_min` e `score_max` (inclusivos, **em % da nota máxima**: para a IA a
+nota arredondada 0–100; para o colaborador, `nota ÷ 4 × 100` nas avaliações novas e a
+nota 0–100 nas anteriores). O endpoint aplica todos os filtros — total,
 contadores e paginação já chegam consistentes; o painel não recorta a página.
 
 Regras (v3 do endpoint):
@@ -202,7 +230,7 @@ Filtros da auditoria (critérios e falhas):
 | Parâmetro | Valores | Aplica sobre |
 |---|---|---|
 | `criterio` | nome do critério da IA | nota do critério (IA), só em atendimento avaliado |
-| `criterio_colaborador` | `Objetividade` · `Simplicidade` · `Velocidade` · `Previsibilidade` | nota do critério na auditoria humana, só com `auditado = true` |
+| `criterio_colaborador` | `Objetividade` · `Simplicidade` · `Velocidade` · `Previsibilidade` · `Coerência do atendimento` · `Checagem de entendimento` | nota do critério (0–100) na auditoria humana, só com `auditado = true` |
 | `criterio_resultado` | `nao_atendido` (padrão) · `atendido` · `avaliado` | os dois filtros de critério; corte de aprovação 90, o mesmo do ✓/✕ da coluna Sinais |
 | `motivo_falha` | `falha_critica` da IA | igualdade exata |
 | `falha_colaborador` | `categoria_erro_humano` ou `__qualquer__` | igualdade exata; `__qualquer__` = qualquer valor diferente de vazio/`nenhuma` |
