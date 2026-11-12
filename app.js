@@ -857,27 +857,19 @@ function pintarVisaoSucesso(dados) {
     </div>`;
 
   // ------------------------------------------------------------- Gráficos
-  const camposNota = ['nota_media_resolvidos', 'nota_media_transferidos', 'nota_media_humano'];
-  const temNotas = temAlgumCampo(serie, camposNota);
   const tipos = dados.tipos_atendimento || [];
   const temNotaTipo = tipos.some(t => t.nota_media != null);
   const camposAlerta = ['alertas_janela_24h', 'alertas_sem_resposta', 'alertas_insatisfacao'];
   const temHistAlertas = temAlgumCampo(serie, camposAlerta);
 
-  const apoioEvolucao = temNotas
-    ? 'nota média da Supervisora por desfecho; a linha tracejada é a taxa de resolução (%)'
-    : 'taxa de resolução (%) ao longo do período — a nota por desfecho aparece assim que a Supervisora enviar';
-  const apoioFaixas = classif
-    ? 'Excelente 85–100 · Bom 70–84 · Regular 50–69 · Crítico 0–49 — clique em uma faixa para ver os atendimentos'
-    : 'atendimentos por faixa de nota da Supervisora — clique em uma faixa para ver os atendimentos';
+  const colabQ = dados.colaboradores_qualidade || null;
+  const infoColab = infoQualidadeColaboradores(colabQ);
 
   $('graficos-visao').className = 'vg-graficos vg-graficos--blocos';
   $('graficos-visao').innerHTML =
-    blocoVisao('evolucao', 'Evolução', 'estamos melhorando ou piorando?',
-      cardGrafico('g-evolucao', 'Evolução da taxa de resolução', apoioEvolucao, true, notaGranularidade(dados))) +
-    blocoVisao('qualidade', 'Qualidade', 'como as notas se distribuem e onde os critérios falham',
-      cardGrafico('g-faixas', 'Distribuição dos atendimentos por faixa', apoioFaixas, true, notaGranularidade(dados)) +
-      cardGrafico('g-criterios', 'Desempenho por critério', 'taxa de aprovação, do pior para o melhor — abaixo de ' + LIMITE_CRITERIO_OK + '% em destaque') +
+    blocoVisao('qualidade', 'Qualidade', 'como cada colaborador se sai no geral e em cada critério — só colaboradores humanos, metodologia nova (nota de 0 a 4)',
+      cardGrafico('g-colab-media', 'Média geral de avaliação por colaborador', 'nota de 0 a 4 — do menor para o maior valor; a cor segue a faixa gerencial', true) +
+      cardGrafico('g-colab-criterios', 'Média por critério e colaborador', 'nota de 0 a 100 em cada critério — critério não aplicável aparece como “—”, nunca como zero', true) +
       cardGrafico('g-falhas', 'Motivos de falha crítica', 'quantidade por motivo')) +
     blocoVisao('diagnostico', 'Diagnóstico', 'onde estão os problemas',
       cardGrafico('g-tipos', temNotaTipo ? 'Efetividade por tipo de atendimento' : 'Tipos de atendimento',
@@ -891,60 +883,13 @@ function pintarVisaoSucesso(dados) {
     blocoVisao('acao', 'Onde agir', 'pontos de atenção derivados dos filtros atuais — cada um abre a evidência',
       '<div class="vg-card vg-card--largo"><div id="g-acoes"></div></div>');
 
-  // Evolução da taxa de resolução (linha)
-  const seriesEvolucao = [];
-  if (temNotas) {
-    seriesEvolucao.push(
-      { chave: 'nota_media_resolvidos', rotulo: 'Resolvidos pela IA', cor: 'var(--ae-serie-2)', peso: 'resolvidos' },
-      { chave: 'nota_media_transferidos', rotulo: 'Transferidos', cor: 'var(--ae-serie-1)', peso: 'transferidos' },
-      { chave: 'nota_media_humano', rotulo: 'Iniciados e atendidos por humano', cor: 'var(--vg-faixa-bom)', peso: 'atendidos_humano' }
-    );
-  }
-  seriesEvolucao.push({
-    rotulo: 'Taxa de resolução',
-    valor: (d) => num(d.atendimentos) ? pct(num(d.resolvidos), num(d.atendimentos)) : null,
-    cor: 'var(--ae-text-soft)',
-    tracejada: true,
-    formato: 'pct',
-    agregado: num(k.taxa_resolucao_pct)
-  });
-  graficoLinha('g-evolucao', serie, seriesEvolucao, gran, {
-    max: 100,
-    altura: 220,
-    camposMedia: camposNota,
-    extrasTip: (d) => {
-      const out = [['Atendimentos', nf.format(num(d.atendimentos))], ['Resolvidos pela IA', nf.format(num(d.resolvidos))], ['Transferidos', nf.format(num(d.transferidos))]];
-      if (d.atendidos_humano != null) out.push(['Atendidos por humano', nf.format(num(d.atendidos_humano))]);
-      return out;
-    }
-  });
+  // Qualidade dos colaboradores (dados do endpoint de métricas: colaboradores_qualidade)
+  pintarQualidadeColaboradores(colabQ, infoColab);
 
-  // Distribuição por faixa (barras empilhadas)
-  const irFaixa = (s) => { if (s.faixa) irParaAtendimentos({ faixa: s.faixa }); };
-  if (classif) {
-    graficoBarras('g-faixas', classif, FAIXAS_CLASSIFICACAO.map(f => ({
-      chave: f.chave, rotulo: f.rotulo + ' · ' + f.min + '–' + f.max, cor: f.cor,
-      faixa: { rotulo: f.rotulo + ' (' + f.min + '–' + f.max + ')', min: f.min, max: f.max }
-    })), gran, { legendaPct: true, aoClicarSerie: irFaixa });
-  } else {
-    graficoBarras('g-faixas', dados.distribuicao_score_serie, (dados.distribuicao_score_faixas || []).map((f, i) => ({
-      chave: f.chave, rotulo: f.rotulo, cor: CORES_FAIXA[i % CORES_FAIXA.length], faixa: faixaDeRotulo(f.rotulo)
-    })), gran, { legendaPct: true, aoClicarSerie: irFaixa });
-  }
-
-  // Desempenho por critério (barras horizontais, pior primeiro)
+  // Critérios da IA seguem alimentando "Onde agir" (pior critério), sem gráfico próprio.
   const criterios = (dados.criterios || []).map(c => Object.assign({}, c, {
     rotulo: (estado.componente === 'ambos' && c.componente) ? (c.componente === 'humano' ? 'Humano · ' : 'IA · ') + c.criterio : c.criterio
   }));
-  graficoBarrasH('g-criterios', criterios, 'rotulo', 'taxa_aprovacao_pct', {
-    formatador: v => nf1.format(v) + '%',
-    campoSecundario: 'quantidade_avaliada',
-    formatadorSecundario: v => nf.format(num(v)) + ' aval.',
-    ordemCrescente: true,
-    max: 100,
-    corPorValor: v => v < LIMITE_CRITERIO_OK ? 'var(--vg-faixa-critico)' : 'var(--ae-serie-2)',
-    aoClicarItem: (d) => irParaAtendimentos({ criterio: d.criterio, criterioComponente: d.componente })
-  });
 
   graficoBarrasH('g-falhas', falhaLista, 'motivo', 'quantidade', {
     cor: 'var(--ae-serie-7)',
@@ -1019,9 +964,131 @@ function pintarVisaoSucesso(dados) {
   ocultarBlocosVazios($('graficos-visao'));
 }
 
+// -----------------------------------------------------------------------------
+// Qualidade dos colaboradores (Visão geral de Sucesso do Cliente)
+//
+// Os dois gráficos leem `colaboradores_qualidade`, devolvido pelo endpoint de
+// métricas (mesmos filtros da aba Atendimentos, mesma view de auditoria humana):
+//   { escala_max: 4, criterios: [nome…],
+//     colaboradores: [{ colaborador, avaliacoes, media_nota, criterios: [{ criterio, media, quantidade }] }],
+//     equipe: { avaliacoes, media_nota, criterios: [...] },
+//     fora_do_grafico: { sem_colaborador_identificado, escala_anterior } }
+// O painel só ordena e desenha: nenhuma média é recalculada aqui. Critério sem
+// avaliação (media = null) aparece como "—", nunca como zero.
+// -----------------------------------------------------------------------------
+const MIN_AVALIACOES_COLABORADOR = 5;  // sinalização visual: poucas avaliações no período
+const MIN_AVALIACOES_CRITERIO = 3;     // idem, por critério
+
+// Faixa gerencial (mesmos cortes de FAIXAS_CLASSIFICACAO: 85 / 70 / 50 % da nota máxima).
+function faixaDePct(p) {
+  const ordem = FAIXAS_CLASSIFICACAO.slice().sort((a, b) => b.min - a.min);
+  return ordem.find(f => p >= f.min) || FAIXAS_CLASSIFICACAO[0];
+}
+
+function plural(n, um, varios) { return nf.format(n) + ' ' + (n === 1 ? um : varios); }
+
+function infoQualidadeColaboradores(q) {
+  if (estado.colaborador === 'ia' || estado.componente === 'ia') return { situacao: 'somente_ia' };
+  if (!q || !Array.isArray(q.colaboradores)) return { situacao: 'indisponivel' };
+
+  const lista = q.colaboradores
+    .filter(c => c && c.colaborador && num(c.avaliacoes) > 0 && c.media_nota != null)
+    .slice()
+    .sort((a, b) => num(a.media_nota) - num(b.media_nota)
+      || num(b.avaliacoes) - num(a.avaliacoes)
+      || String(a.colaborador).localeCompare(String(b.colaborador), 'pt-BR'));
+  const equipe = q.equipe && num(q.equipe.avaliacoes) > 0 && q.equipe.media_nota != null ? q.equipe : null;
+
+  const fora = q.fora_do_grafico || {};
+  const notas = [];
+  if (num(fora.sem_colaborador_identificado) > 0) {
+    notas.push(plural(num(fora.sem_colaborador_identificado), 'avaliação sem colaborador identificado ficou', 'avaliações sem colaborador identificado ficaram') + ' fora');
+  }
+  if (num(fora.escala_anterior) > 0) {
+    notas.push(plural(num(fora.escala_anterior), 'avaliação da metodologia anterior (0–100) ficou', 'avaliações da metodologia anterior (0–100) ficaram') + ' fora');
+  }
+  return { situacao: lista.length ? 'ok' : 'vazio', lista, equipe, nomesCriterios: Array.isArray(q.criterios) ? q.criterios : [], notaFora: notas.join(' · ') };
+}
+
+function estadoVazioColaboradores(info) {
+  if (info.situacao === 'somente_ia') {
+    return blocoVazio('Somente colaboradores humanos',
+      'O filtro atual isola a IA (Sofia). Em “Responsável” escolha colaboradores e, em “Componente avaliado”, IA e humano ou somente humano.');
+  }
+  if (info.situacao === 'indisponivel') {
+    return blocoVazio('Dados dos colaboradores indisponíveis',
+      'A API de métricas ainda não devolve “colaboradores_qualidade”. Publique a versão atualizada do workflow da API.');
+  }
+  return blocoVazio('Nenhuma avaliação de colaborador nos filtros atuais',
+    'Só entram avaliações já concluídas da metodologia nova (nota de 0 a 4) com colaborador identificado.' + (info.notaFora ? ' ' + info.notaFora + '.' : ''));
+}
+
+function legendaFaixas(formatar) {
+  return '<div class="vg-legenda vg-legenda--faixas">' + FAIXAS_CLASSIFICACAO.slice().sort((a, b) => b.min - a.min).map((f, i, todas) => {
+    const acima = todas[i - 1];
+    const texto = !acima ? '≥ ' + formatar(f.min) : f.min === 0 ? '< ' + formatar(acima.min) : formatar(f.min) + ' a < ' + formatar(acima.min);
+    return `<span class="vg-legenda__item"><i class="vg-legenda__cor" style="background:${f.cor}"></i>${escapeHtml(f.rotulo)} <b>${escapeHtml(texto)}</b></span>`;
+  }).join('') + '</div>';
+}
+
+function pintarQualidadeColaboradores(q, info) {
+  const elMedia = $('g-colab-media');
+  const elCriterios = $('g-colab-criterios');
+  if (!elMedia || !elCriterios) return;
+
+  if (info.situacao !== 'ok') {
+    elMedia.innerHTML = estadoVazioColaboradores(info);
+    elCriterios.innerHTML = estadoVazioColaboradores(info);
+    return;
+  }
+
+  const rodape = info.notaFora ? `<p class="vg-card__apoio vg-nota-rodape">${escapeHtml(info.notaFora)} — não entram nas médias.</p>` : '';
+  const pouco = info.lista.some(c => num(c.avaliacoes) < MIN_AVALIACOES_COLABORADOR);
+
+  // ---- Gráfico 1: média geral por colaborador (barras horizontais, nota 0-4) ----
+  const linha = (rotulo, c, destaque) => {
+    const valor = num(c.media_nota);
+    const p = pctDaNota(valor, ESCALA_NOVA_COLABORADOR);
+    const faixa = faixaDePct(p);
+    const poucas = !destaque && num(c.avaliacoes) < MIN_AVALIACOES_COLABORADOR;
+    return `<div class="vg-barras__linha${destaque ? ' vg-barras__linha--equipe' : ''}${poucas ? ' vg-barras__linha--pouco' : ''}" role="listitem"
+        title="${escapeHtml(rotulo)}: ${nf2.format(valor)} de 4 · ${escapeHtml(faixa.rotulo)} · ${nf.format(num(c.avaliacoes))} avaliações${poucas ? ' (poucas avaliações)' : ''}">
+      <span class="vg-barras__rotulo">${escapeHtml(rotulo)}</span>
+      <span class="vg-barras__trilha"><i class="vg-barras__preenchido" style="width:${p}%;background:${faixa.cor}"></i></span>
+      <span class="vg-barras__valor">${nf2.format(valor)} <span class="vg-comp__pct">${nf.format(num(c.avaliacoes))} aval.</span></span>
+    </div>`;
+  };
+  elMedia.innerHTML = legendaFaixas(v => nf2.format(v * ESCALA_NOVA_COLABORADOR / 100)) +
+    '<div class="vg-barras" role="list">' + info.lista.map(c => linha(c.colaborador, c, false)).join('') +
+    (info.equipe ? '<div class="vg-barras__separador" aria-hidden="true"></div>' + linha('Média da equipe', info.equipe, true) : '') + '</div>' +
+    (pouco ? `<p class="vg-card__apoio vg-nota-rodape">Linhas esmaecidas: menos de ${MIN_AVALIACOES_COLABORADOR} avaliações no período — leia com cautela.</p>` : '') + rodape;
+
+  // ---- Gráfico 2: média por critério e colaborador (matriz com cor por faixa, nota 0-100) ----
+  const nomes = info.nomesCriterios.length ? info.nomesCriterios : ((info.lista[0] && info.lista[0].criterios) || []).map(c => c.criterio);
+  const celula = (c, nome, rotuloLinha) => {
+    const item = (c.criterios || []).find(x => x.criterio === nome);
+    const qtd = item ? num(item.quantidade) : 0;
+    if (!item || item.media == null || qtd === 0) {
+      return `<td class="vg-matriz__cel vg-matriz__cel--nd" title="${escapeHtml(rotuloLinha + ' · ' + nome)}: critério não aplicável nos atendimentos do período">—</td>`;
+    }
+    const valor = num(item.media);
+    const faixa = faixaDePct(valor);
+    const poucas = qtd < MIN_AVALIACOES_CRITERIO;
+    return `<td class="vg-matriz__cel vg-matriz__cel--${faixa.chave}${poucas ? ' vg-matriz__cel--pouco' : ''}"
+        title="${escapeHtml(rotuloLinha + ' · ' + nome)}: ${nf1.format(valor)} de 100 · ${escapeHtml(faixa.rotulo)} · ${nf.format(qtd)} ${qtd === 1 ? 'avaliação' : 'avaliações'}${poucas ? ' (poucas)' : ''}">${nf1.format(valor)}</td>`;
+  };
+  const poucoCrit = info.lista.concat(info.equipe ? [info.equipe] : []).some(c => (c.criterios || []).some(x => x.media != null && num(x.quantidade) > 0 && num(x.quantidade) < MIN_AVALIACOES_CRITERIO));
+  elCriterios.innerHTML = legendaFaixas(v => nf.format(v)) +
+    `<div class="vg-matriz-wrap"><table class="vg-matriz">
+      <thead><tr><th scope="col" class="vg-matriz__nome">Colaborador</th>${nomes.map(n => `<th scope="col">${escapeHtml(n)}</th>`).join('')}</tr></thead>
+      <tbody>${info.lista.map(c => `<tr><th scope="row" class="vg-matriz__nome"><span>${escapeHtml(c.colaborador)}</span><small>${nf.format(num(c.avaliacoes))} aval.</small></th>${nomes.map(n => celula(c, n, c.colaborador)).join('')}</tr>`).join('')}</tbody>
+      ${info.equipe ? `<tfoot><tr><th scope="row" class="vg-matriz__nome"><span>Média da equipe</span><small>${nf.format(num(info.equipe.avaliacoes))} aval.</small></th>${nomes.map(n => celula(info.equipe, n, 'Média da equipe')).join('')}</tr></tfoot>` : ''}
+    </table></div>` +
+    (poucoCrit ? `<p class="vg-card__apoio vg-nota-rodape">Valores em itálico: menos de ${MIN_AVALIACOES_CRITERIO} avaliações no critério — leia com cautela. Passe o mouse sobre um valor para ver a quantidade.</p>` : '');
+}
+
 function pintarAcoesSucesso({ k, criterios, falhaLista, tipos, temNotaTipo, criticos, drillCritico }) {
   const acoes = [];
-  const plural = (n, um, varios) => nf.format(n) + ' ' + (n === 1 ? um : varios);
 
   if (num(k.sem_resposta_60min_agora) > 0) {
     acoes.push({ alto: true, texto: plural(num(k.sem_resposta_60min_agora), 'cliente aguardando resposta há mais de 1h', 'clientes aguardando resposta há mais de 1h'), apoio: 'agora', patch: { sinal: 'sem_resposta_60min' } });
