@@ -68,6 +68,15 @@ const nf2 = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFr
 
 // Nota do COLABORADOR (Sucesso do Cliente). Metodologia nova: 0 a 4 (escala_score = 4), 2 casas decimais.
 // Avaliações antigas seguem em 0-100 (escala_score = 100) e não são recalculadas. A nota da IA é sempre 0-100.
+// Time de Sucesso do Cliente: os únicos colaboradores exibidos nos gráficos de qualidade e nas opções do
+// filtro Responsável. Manter igual a TIME_SUCESSO_CLIENTE do workflow da API (métricas e atendimentos).
+const TIME_SUCESSO_CLIENTE = ['Ana Bueno', 'Isabella Almeida', 'Jackson Santos', 'Juliana Lopes Miranda',
+  'Marianna Martins', 'Matheus Lang', 'Matheus Rodrigues', 'Rafaela Espósito'];
+const porNome = (a, b) => String(a).localeCompare(String(b), 'pt-BR', { sensitivity: 'base' });
+function nomeDoTime(nome) {
+  const n = String(nome || '').trim().toLowerCase();
+  return TIME_SUCESSO_CLIENTE.find(t => t.toLowerCase() === n) || null;
+}
 const ESCALA_NOVA_COLABORADOR = 4;
 function escalaDaNota(escala) { return Number(escala) === ESCALA_NOVA_COLABORADOR ? ESCALA_NOVA_COLABORADOR : 100; }
 function pctDaNota(valor, escala) { return Math.max(0, Math.min(100, num(valor) / escalaDaNota(escala) * 100)); }
@@ -115,6 +124,8 @@ const estado = {
   // colaborador, e o resultado procurado nos filtros de critério.
   filtroCriterioColaborador: null,
   filtroFalhaColaborador: null,
+  colaboradorNome: null,   // Sucesso do Cliente: um colaborador do time escolhido no filtro Responsável
+  destaqueColab: null,     // colaborador em destaque nos gráficos de Qualidade (só visual, não refaz a consulta)
   filtroCriterioResultado: 'nao_atendido', // 'nao_atendido' | 'atendido' | 'avaliado'
   // Opções devolvidas pelo endpoint de atendimentos (critérios e falhas registrados).
   opcoesFiltro: null,
@@ -867,8 +878,8 @@ function pintarVisaoSucesso(dados) {
 
   $('graficos-visao').className = 'vg-graficos vg-graficos--blocos';
   $('graficos-visao').innerHTML =
-    blocoVisao('qualidade', 'Qualidade', 'como cada colaborador se sai no geral e em cada critério — só colaboradores humanos, metodologia nova (nota de 0 a 4)',
-      cardGrafico('g-colab-media', 'Média geral de avaliação por colaborador', 'nota de 0 a 4 — do menor para o maior valor; a cor segue a faixa gerencial', true) +
+    blocoVisao('qualidade', 'Qualidade', 'como cada colaborador do time de Sucesso do Cliente se sai no geral e em cada critério — só humanos, metodologia nova (nota de 0 a 4)',
+      cardGrafico('g-colab-media', 'Média geral de avaliação por colaborador', 'nota de 0 a 4, em ordem alfabética; a cor segue a faixa gerencial. Clique no nome para destacar; ↗ abre os atendimentos auditados da pessoa', true) +
       cardGrafico('g-colab-criterios', 'Média por critério e colaborador', 'nota de 0 a 100 em cada critério — critério não aplicável aparece como “—”, nunca como zero', true) +
       cardGrafico('g-falhas', 'Motivos de falha crítica', 'quantidade por motivo')) +
     blocoVisao('diagnostico', 'Diagnóstico', 'onde estão os problemas',
@@ -991,18 +1002,21 @@ function infoQualidadeColaboradores(q) {
   if (estado.colaborador === 'ia' || estado.componente === 'ia') return { situacao: 'somente_ia' };
   if (!q || !Array.isArray(q.colaboradores)) return { situacao: 'indisponivel' };
 
+  // Só o time de Sucesso do Cliente, em ordem alfabética (a API já restringe; aqui é garantia).
   const lista = q.colaboradores
-    .filter(c => c && c.colaborador && num(c.avaliacoes) > 0 && c.media_nota != null)
-    .slice()
-    .sort((a, b) => num(a.media_nota) - num(b.media_nota)
-      || num(b.avaliacoes) - num(a.avaliacoes)
-      || String(a.colaborador).localeCompare(String(b.colaborador), 'pt-BR'));
-  const equipe = q.equipe && num(q.equipe.avaliacoes) > 0 && q.equipe.media_nota != null ? q.equipe : null;
+    .filter(c => c && nomeDoTime(c.colaborador) && num(c.avaliacoes) > 0 && c.media_nota != null)
+    .map(c => Object.assign({}, c, { colaborador: nomeDoTime(c.colaborador) }))
+    .sort((a, b) => porNome(a.colaborador, b.colaborador));
+  // Com um colaborador escolhido no filtro, não há "equipe": só os dados dele.
+  const equipe = !estado.colaboradorNome && q.equipe && num(q.equipe.avaliacoes) > 0 && q.equipe.media_nota != null ? q.equipe : null;
 
   const fora = q.fora_do_grafico || {};
   const notas = [];
   if (num(fora.sem_colaborador_identificado) > 0) {
     notas.push(plural(num(fora.sem_colaborador_identificado), 'avaliação sem colaborador identificado ficou', 'avaliações sem colaborador identificado ficaram') + ' fora');
+  }
+  if (num(fora.outros_colaboradores) > 0) {
+    notas.push(plural(num(fora.outros_colaboradores), 'avaliação de colaborador fora do time de Sucesso do Cliente ficou', 'avaliações de colaboradores fora do time de Sucesso do Cliente ficaram') + ' fora');
   }
   if (num(fora.escala_anterior) > 0) {
     notas.push(plural(num(fora.escala_anterior), 'avaliação da metodologia anterior (0–100) ficou', 'avaliações da metodologia anterior (0–100) ficaram') + ' fora');
@@ -1020,7 +1034,7 @@ function estadoVazioColaboradores(info) {
       'A API de métricas ainda não devolve “colaboradores_qualidade”. Publique a versão atualizada do workflow da API.');
   }
   return blocoVazio('Nenhuma avaliação de colaborador nos filtros atuais',
-    'Só entram avaliações já concluídas da metodologia nova (nota de 0 a 4) com colaborador identificado.' + (info.notaFora ? ' ' + info.notaFora + '.' : ''));
+    'Só entram avaliações já concluídas da metodologia nova (nota de 0 a 4) de colaboradores do time de Sucesso do Cliente.' + (info.notaFora ? ' ' + info.notaFora + '.' : ''));
 }
 
 function legendaFaixas(formatar) {
@@ -1031,34 +1045,52 @@ function legendaFaixas(formatar) {
   }).join('') + '</div>';
 }
 
+// Nome clicável (destaca o colaborador nos dois gráficos) + atalho para os atendimentos auditados dele.
+function celulaNomeColaborador(nome) {
+  const ativo = estado.destaqueColab === nome;
+  return `<button class="vg-colab-nome" type="button" data-destacar="${escapeHtml(nome)}" aria-pressed="${ativo}" title="${ativo ? 'Remover destaque' : 'Destacar ' + escapeHtml(nome) + ' nos gráficos'}">${escapeHtml(nome)}</button>` +
+    `<button class="vg-colab-link" type="button" data-ver-atend="${escapeHtml(nome)}" title="Ver os atendimentos auditados de ${escapeHtml(nome)}" aria-label="Ver os atendimentos auditados de ${escapeHtml(nome)}">↗</button>`;
+}
+
+function avisoDestaque() {
+  return estado.destaqueColab
+    ? `<p class="vg-destaque-aviso">Em destaque: <b>${escapeHtml(estado.destaqueColab)}</b> <button class="vg-link" type="button" data-destacar="${escapeHtml(estado.destaqueColab)}">limpar destaque</button></p>`
+    : '';
+}
+
 function pintarQualidadeColaboradores(q, info) {
   const elMedia = $('g-colab-media');
   const elCriterios = $('g-colab-criterios');
   if (!elMedia || !elCriterios) return;
+  estado.colabRender = { q, info };
 
   if (info.situacao !== 'ok') {
     elMedia.innerHTML = estadoVazioColaboradores(info);
     elCriterios.innerHTML = estadoVazioColaboradores(info);
     return;
   }
+  if (estado.destaqueColab && !info.lista.some(c => c.colaborador === estado.destaqueColab)) estado.destaqueColab = null;
+  const dest = estado.destaqueColab;
+  elMedia.classList.toggle('tem-destaque', !!dest);
+  elCriterios.classList.toggle('tem-destaque', !!dest);
 
   const rodape = info.notaFora ? `<p class="vg-card__apoio vg-nota-rodape">${escapeHtml(info.notaFora)} — não entram nas médias.</p>` : '';
   const pouco = info.lista.some(c => num(c.avaliacoes) < MIN_AVALIACOES_COLABORADOR);
 
   // ---- Gráfico 1: média geral por colaborador (barras horizontais, nota 0-4) ----
-  const linha = (rotulo, c, destaque) => {
+  const linha = (rotulo, c, equipe) => {
     const valor = num(c.media_nota);
     const p = pctDaNota(valor, ESCALA_NOVA_COLABORADOR);
     const faixa = faixaDePct(p);
-    const poucas = !destaque && num(c.avaliacoes) < MIN_AVALIACOES_COLABORADOR;
-    return `<div class="vg-barras__linha${destaque ? ' vg-barras__linha--equipe' : ''}${poucas ? ' vg-barras__linha--pouco' : ''}" role="listitem"
+    const poucas = !equipe && num(c.avaliacoes) < MIN_AVALIACOES_COLABORADOR;
+    return `<div class="vg-barras__linha${equipe ? ' vg-barras__linha--equipe' : ''}${poucas ? ' vg-barras__linha--pouco' : ''}${!equipe && dest === rotulo ? ' is-destaque' : ''}" role="listitem"
         title="${escapeHtml(rotulo)}: ${nf2.format(valor)} de 4 · ${escapeHtml(faixa.rotulo)} · ${nf.format(num(c.avaliacoes))} avaliações${poucas ? ' (poucas avaliações)' : ''}">
-      <span class="vg-barras__rotulo">${escapeHtml(rotulo)}</span>
+      <span class="vg-barras__rotulo vg-colab-rotulo">${equipe ? escapeHtml(rotulo) : celulaNomeColaborador(rotulo)}</span>
       <span class="vg-barras__trilha"><i class="vg-barras__preenchido" style="width:${p}%;background:${faixa.cor}"></i></span>
       <span class="vg-barras__valor">${nf2.format(valor)} <span class="vg-comp__pct">${nf.format(num(c.avaliacoes))} aval.</span></span>
     </div>`;
   };
-  elMedia.innerHTML = legendaFaixas(v => nf2.format(v * ESCALA_NOVA_COLABORADOR / 100)) +
+  elMedia.innerHTML = legendaFaixas(v => nf2.format(v * ESCALA_NOVA_COLABORADOR / 100)) + avisoDestaque() +
     '<div class="vg-barras" role="list">' + info.lista.map(c => linha(c.colaborador, c, false)).join('') +
     (info.equipe ? '<div class="vg-barras__separador" aria-hidden="true"></div>' + linha('Média da equipe', info.equipe, true) : '') + '</div>' +
     (pouco ? `<p class="vg-card__apoio vg-nota-rodape">Linhas esmaecidas: menos de ${MIN_AVALIACOES_COLABORADOR} avaliações no período — leia com cautela.</p>` : '') + rodape;
@@ -1078,13 +1110,41 @@ function pintarQualidadeColaboradores(q, info) {
         title="${escapeHtml(rotuloLinha + ' · ' + nome)}: ${nf1.format(valor)} de 100 · ${escapeHtml(faixa.rotulo)} · ${nf.format(qtd)} ${qtd === 1 ? 'avaliação' : 'avaliações'}${poucas ? ' (poucas)' : ''}">${nf1.format(valor)}</td>`;
   };
   const poucoCrit = info.lista.concat(info.equipe ? [info.equipe] : []).some(c => (c.criterios || []).some(x => x.media != null && num(x.quantidade) > 0 && num(x.quantidade) < MIN_AVALIACOES_CRITERIO));
-  elCriterios.innerHTML = legendaFaixas(v => nf.format(v)) +
+  elCriterios.innerHTML = legendaFaixas(v => nf.format(v)) + avisoDestaque() +
     `<div class="vg-matriz-wrap"><table class="vg-matriz">
       <thead><tr><th scope="col" class="vg-matriz__nome">Colaborador</th>${nomes.map(n => `<th scope="col">${escapeHtml(n)}</th>`).join('')}</tr></thead>
-      <tbody>${info.lista.map(c => `<tr><th scope="row" class="vg-matriz__nome"><span>${escapeHtml(c.colaborador)}</span><small>${nf.format(num(c.avaliacoes))} aval.</small></th>${nomes.map(n => celula(c, n, c.colaborador)).join('')}</tr>`).join('')}</tbody>
+      <tbody>${info.lista.map(c => `<tr class="${dest === c.colaborador ? 'is-destaque' : ''}"><th scope="row" class="vg-matriz__nome"><span class="vg-colab-rotulo">${celulaNomeColaborador(c.colaborador)}</span><small>${nf.format(num(c.avaliacoes))} aval.</small></th>${nomes.map(n => celula(c, n, c.colaborador)).join('')}</tr>`).join('')}</tbody>
       ${info.equipe ? `<tfoot><tr><th scope="row" class="vg-matriz__nome"><span>Média da equipe</span><small>${nf.format(num(info.equipe.avaliacoes))} aval.</small></th>${nomes.map(n => celula(info.equipe, n, 'Média da equipe')).join('')}</tr></tfoot>` : ''}
     </table></div>` +
     (poucoCrit ? `<p class="vg-card__apoio vg-nota-rodape">Valores em itálico: menos de ${MIN_AVALIACOES_CRITERIO} avaliações no critério — leia com cautela. Passe o mouse sobre um valor para ver a quantidade.</p>` : '');
+}
+
+// Destaque (só visual, sem nova consulta) e atalho para os atendimentos auditados do colaborador.
+function destacarColaborador(nome) {
+  estado.destaqueColab = estado.destaqueColab === nome ? null : nome;
+  if (estado.colabRender) pintarQualidadeColaboradores(estado.colabRender.q, estado.colabRender.info);
+}
+
+function verAtendimentosDoColaborador(nome) {
+  const n = nomeDoTime(nome);
+  if (!n) return;
+  // Mantém período, data de referência, status e demais filtros: só acrescenta o colaborador.
+  estado.colaboradorNome = n;
+  estado.colaborador = 'colaboradores';
+  estado.pagina = 1;
+  estado.dados = null;
+  sincronizarSelectsFiltro();
+  atualizarResumoFiltros();
+  selecionarSecao('auditoria');
+}
+
+function ligarGraficosColaboradores() {
+  $('graficos-visao').addEventListener('click', (e) => {
+    const ver = e.target.closest('[data-ver-atend]');
+    if (ver) { verAtendimentosDoColaborador(ver.dataset.verAtend); return; }
+    const dst = e.target.closest('[data-destacar]');
+    if (dst) destacarColaborador(dst.dataset.destacar);
+  });
 }
 
 function pintarAcoesSucesso({ k, criterios, falhaLista, tipos, temNotaTipo, criticos, drillCritico }) {
@@ -1438,6 +1498,7 @@ function parametrosFiltro() {
     base_data: estado.baseData,
     scope_token: (estado.permissoes && estado.permissoes.scope_token) || '',
     ...(estado.colaborador ? { colaborador: estado.colaborador } : {}),
+    ...(estado.departamento === 'sucesso_cliente' && estado.colaboradorNome ? { colaborador_nome: estado.colaboradorNome } : {}),
     ...(estado.departamento === 'sucesso_cliente' ? { componente: estado.componente } : {}),
     ...(estado.filtroFaixa ? { score_min: estado.filtroFaixa.min, score_max: estado.filtroFaixa.max } : {}),
     ...(estado.filtroMotivoFalha ? { motivo_falha: estado.filtroMotivoFalha } : {}),
@@ -1508,7 +1569,7 @@ async function carregarMetricas(forcar) {
   marcarCarregando(true);
   try {
     estado.dados = estado.demo
-      ? window.VigiaDemo.metricas(estado.agente, estado.periodos, { componente: estado.componente })
+      ? window.VigiaDemo.metricas(estado.agente, estado.periodos, { componente: estado.componente, colaboradorNome: estado.colaboradorNome })
       : await chamarApi('painel-vigia-engel-metricas', parametrosFiltro());
     pintarMetricas();
     marcarAtualizado();
@@ -1523,7 +1584,7 @@ async function carregarMetricas(forcar) {
     }
     ativarDemo('A API da Supervisora não respondeu (' + e.message + '), então o painel exibe um conjunto de exemplo. Nenhum número aqui é dado real da operação.');
     try {
-      estado.dados = window.VigiaDemo.metricas(estado.agente, estado.periodos, { componente: estado.componente });
+      estado.dados = window.VigiaDemo.metricas(estado.agente, estado.periodos, { componente: estado.componente, colaboradorNome: estado.colaboradorNome });
       pintarMetricas();
       marcarAtualizado();
     } catch (e2) {
@@ -1704,7 +1765,10 @@ function rotuloStatus(valor) {
 
 function atualizarResumoFiltros() {
   const pilulas = [];
-  if (estado.colaborador) {
+  if (estado.colaboradorNome) {
+    pilulas.push(`<span class="vg-pilula">Colaborador: <b>${escapeHtml(estado.colaboradorNome)}</b>
+      <button class="vg-pilula__x" type="button" data-limpar="colaborador" aria-label="Remover filtro de colaborador">×</button></span>`);
+  } else if (estado.colaborador) {
     pilulas.push(`<span class="vg-pilula">Origem: <b>${escapeHtml(ROTULOS_COLABORADOR[estado.colaborador] || estado.colaborador)}</b>
       <button class="vg-pilula__x" type="button" data-limpar="colaborador" aria-label="Remover filtro de origem">×</button></span>`);
   }
@@ -1767,7 +1831,7 @@ function atualizarResumoFiltros() {
   }
 
   $('filtros-resumo').innerHTML = pilulas.join('') + (pilulas.length ? '<button class="vg-limpar" type="button" data-limpar="tudo">Limpar filtros</button>' : '');
-  $('filtro-colaborador').classList.toggle('is-alterado', !!estado.colaborador);
+  $('filtro-colaborador').classList.toggle('is-alterado', !!estado.colaborador || !!estado.colaboradorNome);
   $('filtro-status').classList.toggle('is-alterado', estado.status !== 'todos');
   $('filtro-base-data').classList.toggle('is-alterado', estado.baseData !== 'criacao');
   $('filtro-criterio').classList.toggle('is-alterado', !!estado.filtroCriterio);
@@ -1798,6 +1862,7 @@ function atualizarResumoFiltros() {
 }
 
 function sincronizarSelectsFiltro() {
+  $('filtro-colaborador').value = valorSelectResponsavel();
   $('filtro-status').value = estado.status;
   $('filtro-criterio').value = estado.filtroCriterio || '';
   $('filtro-motivo-falha').value = estado.filtroMotivoFalha || '';
@@ -2140,8 +2205,12 @@ function pintarSegAgente() {
 
 function pintarFiltrosDoDepartamento() {
   const origens = [['todos', 'Colaboradores e IA'], ['ia', 'Somente IA'], ['colaboradores', 'Somente colaboradores']];
-  $('filtro-colaborador').innerHTML = origens.map(o =>
-    `<option value="${o[0]}"${(estado.colaborador || 'todos') === o[0] ? ' selected' : ''}>${escapeHtml(o[1])}</option>`).join('');
+  const optsOrigem = origens.map(o => `<option value="${o[0]}">${escapeHtml(o[1])}</option>`).join('');
+  const optsTime = estado.departamento === 'sucesso_cliente'
+    ? `<optgroup label="Colaborador do time">${TIME_SUCESSO_CLIENTE.slice().sort(porNome).map(n => `<option value="nome:${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}</optgroup>`
+    : '';
+  $('filtro-colaborador').innerHTML = optsOrigem + optsTime;
+  $('filtro-colaborador').value = valorSelectResponsavel();
   $('filtro-base-data').hidden = estado.departamento !== 'sucesso_cliente';
   $('filtro-base-data').value = estado.baseData;
   $('filtro-componente-wrap').hidden = estado.departamento !== 'sucesso_cliente';
@@ -2154,12 +2223,18 @@ function pintarFiltrosDoDepartamento() {
     `<option value="${s[0]}"${estado.status === s[0] ? ' selected' : ''}>${escapeHtml(s[1])}</option>`).join('');
 }
 
+function valorSelectResponsavel() {
+  return estado.colaboradorNome ? 'nome:' + estado.colaboradorNome : (estado.colaborador || 'todos');
+}
+
 function selecionarDepartamento(departamento) {
   if (departamentosPermitidos().indexOf(departamento) === -1) return;
   estado.departamento = departamento;
   estado.agente = DEPARTAMENTOS[departamento].agentes[0].id;
   estado.status = 'todos';
   estado.colaborador = null;
+  estado.colaboradorNome = null;
+  estado.destaqueColab = null;
   estado.baseData = departamento === 'sucesso_cliente' ? 'conclusao' : 'criacao';
   Object.keys(estado.sinais).forEach(k => { estado.sinais[k] = false; });
   estado.filtroMotivoFalha = null;
@@ -2212,6 +2287,7 @@ async function atualizarTudo(forcar) {
 // Eventos
 // =============================================================================
 function ligarNavegacao() {
+  ligarGraficosColaboradores();
   $('seg-departamento').addEventListener('click', (e) => {
     const b = e.target.closest('[data-departamento]');
     if (b) selecionarDepartamento(b.dataset.departamento);
@@ -2225,7 +2301,16 @@ function ligarNavegacao() {
   });
 
   $('filtro-colaborador').addEventListener('change', (e) => {
-    estado.colaborador = e.target.value === 'todos' ? null : e.target.value;
+    const v = e.target.value;
+    if (v.indexOf('nome:') === 0) {
+      // Um colaborador do time: só avaliações dele (a origem passa a ser "colaboradores").
+      estado.colaboradorNome = nomeDoTime(v.slice(5));
+      estado.colaborador = estado.colaboradorNome ? 'colaboradores' : null;
+    } else {
+      estado.colaboradorNome = null;
+      estado.colaborador = v === 'todos' ? null : v;
+    }
+    estado.destaqueColab = null;
     recarregarPorFiltro();
   });
   $('filtro-status').addEventListener('change', (e) => {
@@ -2275,7 +2360,7 @@ function ligarNavegacao() {
     const alvo = e.target.closest('[data-limpar]');
     if (!alvo) return;
     const qual = alvo.dataset.limpar;
-    if (qual === 'colaborador' || qual === 'tudo') { estado.colaborador = null; $('filtro-colaborador').value = 'todos'; }
+    if (qual === 'colaborador' || qual === 'tudo') { estado.colaborador = null; estado.colaboradorNome = null; estado.destaqueColab = null; $('filtro-colaborador').value = 'todos'; }
     if (qual === 'status' || qual === 'tudo') { estado.status = 'todos'; $('filtro-status').value = 'todos'; }
     if (qual === 'avaliado' || qual === 'tudo') { estado.avaliado = 'sim'; $('filtro-avaliado').value = 'sim'; }
     if (qual === 'base-data' || qual === 'tudo') {
