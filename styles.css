@@ -1361,8 +1361,8 @@ button.vg-kpi:hover { border-color: var(--ae-border-strong); }
   font-weight: 500;
   color: var(--ae-text);
 }
-.vg-matriz tbody .vg-matriz__nome span,
-.vg-matriz tfoot .vg-matriz__nome span { display: block; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vg-matriz tbody .vg-matriz__nome > span,
+.vg-matriz tfoot .vg-matriz__nome > span { display: block; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vg-matriz__nome small { display: block; font-size: 11px; font-weight: 400; color: var(--ae-text-faint); }
 .vg-matriz__cel {
   padding: 9px 6px;
@@ -1392,3 +1392,33 @@ button.vg-kpi:hover { border-color: var(--ae-border-strong); }
   .vg-matriz { min-width: 680px; }
   .vg-matriz__nome { min-width: 120px; }
 }
+
+
+/* --- Destaque individual e atalho para os atendimentos do colaborador --- */
+.vg-colab-rotulo { display: flex !important; align-items: center; gap: 6px; min-width: 0; }
+.vg-colab-nome {
+  appearance: none; background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border-radius: 4px;
+}
+.vg-colab-nome:hover { color: var(--ae-pink-ink); text-decoration: underline; }
+.vg-colab-nome[aria-pressed="true"] { color: var(--ae-pink-ink); font-weight: 700; }
+.vg-colab-link {
+  appearance: none; flex-shrink: 0; width: 20px; height: 20px; padding: 0;
+  display: grid; place-items: center;
+  font-size: 11px; line-height: 1; cursor: pointer;
+  color: var(--ae-text-soft); background: var(--ae-surface);
+  border: 1px solid var(--ae-border); border-radius: var(--ae-radius-pill);
+}
+.vg-colab-link:hover, .vg-colab-link:focus-visible { color: var(--ae-pink-ink); border-color: var(--ae-pink-line); outline: none; }
+.vg-colab-nome:focus-visible { outline: 2px solid var(--ae-pink-line); outline-offset: 2px; }
+.vg-destaque-aviso { margin: 0 0 10px; font-size: 12px; color: var(--ae-text-soft); }
+.vg-destaque-aviso b { color: var(--ae-pink-ink); }
+
+/* Com alguém em destaque, os demais esmaecem; a média da equipe fica como referência. */
+.tem-destaque .vg-barras__linha:not(.is-destaque):not(.vg-barras__linha--equipe) { opacity: .35; }
+.vg-barras__linha.is-destaque { background: var(--ae-pink-soft); box-shadow: 0 0 0 5px var(--ae-pink-soft); border-radius: var(--ae-radius-sm); }
+.tem-destaque .vg-matriz tbody tr:not(.is-destaque) > * { opacity: .35; }
+.vg-matriz tbody tr.is-destaque > th { background: var(--ae-pink-soft); border-radius: var(--ae-radius-sm); }
+.vg-matriz tbody tr.is-destaque > td { outline: 2px solid var(--ae-pink-line); }
