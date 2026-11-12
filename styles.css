@@ -1315,3 +1315,80 @@ button.vg-kpi:hover { border-color: var(--ae-border-strong); }
 /* Critério vindo do drill-down/filtro: contorno para achá-lo na linha. */
 .vg-crit.is-foco { box-shadow: inset 0 0 0 1px var(--ae-pink-line); }
 [data-tema="escuro"] .vg-crit--nao .vg-crit__icone { color: #14112A; }
+
+
+/* =========================================================================
+   11. Qualidade dos colaboradores (Visão geral de Sucesso do Cliente)
+   Média geral por colaborador (barras) e média por critério (matriz).
+   Só usa os tokens existentes: faixas gerenciais, superfícies e textos.
+   ========================================================================= */
+.vg-legenda--faixas { margin-bottom: 14px; }
+.vg-nota-rodape { margin: 12px 0 0; }
+
+/* Barras: linha de referência da equipe e linhas com poucas avaliações */
+.vg-barras__separador { height: 1px; background: var(--ae-border); margin: 2px 0; }
+.vg-barras__linha--equipe .vg-barras__rotulo { font-weight: 600; color: var(--ae-text); }
+.vg-barras__linha--pouco .vg-barras__rotulo,
+.vg-barras__linha--pouco .vg-barras__trilha { opacity: .6; }
+
+/* Matriz critério x colaborador */
+.vg-matriz-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.vg-matriz {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: separate;
+  border-spacing: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.vg-matriz thead th {
+  padding: 4px 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  vertical-align: bottom;
+  color: var(--ae-text-soft);
+}
+.vg-matriz__nome {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 150px;
+  max-width: 220px;
+  padding: 5px 10px 5px 2px;
+  text-align: left !important;
+  background: var(--ae-surface);
+  font-weight: 500;
+  color: var(--ae-text);
+}
+.vg-matriz tbody .vg-matriz__nome span,
+.vg-matriz tfoot .vg-matriz__nome span { display: block; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vg-matriz__nome small { display: block; font-size: 11px; font-weight: 400; color: var(--ae-text-faint); }
+.vg-matriz__cel {
+  padding: 9px 6px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ae-text);
+  border-radius: var(--ae-radius-sm);
+  background: var(--ae-surface-2);
+}
+/* Cor da faixa em fundo suave + friso à esquerda (a cor nunca é o único sinal: o número está na célula). */
+.vg-matriz__cel--excelente { background: var(--ae-surface-2); box-shadow: inset 3px 0 0 var(--vg-faixa-excelente); }
+.vg-matriz__cel--bom       { background: var(--ae-surface-2); box-shadow: inset 3px 0 0 var(--vg-faixa-bom); }
+.vg-matriz__cel--regular   { background: var(--ae-surface-2); box-shadow: inset 3px 0 0 var(--vg-faixa-regular); }
+.vg-matriz__cel--critico   { background: var(--ae-pink-soft); box-shadow: inset 3px 0 0 var(--vg-faixa-critico); color: var(--ae-pink-ink); font-weight: 700; }
+@supports (background: color-mix(in srgb, red 10%, white)) {
+  .vg-matriz__cel--excelente { background: color-mix(in srgb, var(--vg-faixa-excelente) 14%, var(--ae-surface)); }
+  .vg-matriz__cel--bom       { background: color-mix(in srgb, var(--vg-faixa-bom) 24%, var(--ae-surface)); }
+  .vg-matriz__cel--regular   { background: color-mix(in srgb, var(--vg-faixa-regular) 36%, var(--ae-surface)); }
+  .vg-matriz__cel--critico   { background: color-mix(in srgb, var(--vg-faixa-critico) 22%, var(--ae-surface)); }
+}
+.vg-matriz__cel--nd { background: transparent; box-shadow: none; font-weight: 400; color: var(--ae-text-faint); }
+.vg-matriz__cel--pouco { font-style: italic; opacity: .75; }
+.vg-matriz tfoot .vg-matriz__nome span { font-weight: 600; }
+.vg-matriz tfoot .vg-matriz__cel { outline: 1px solid var(--ae-border); }
+@media (max-width: 900px) {
+  .vg-matriz { min-width: 680px; }
+  .vg-matriz__nome { min-width: 120px; }
+}
