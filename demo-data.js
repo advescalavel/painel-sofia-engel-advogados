@@ -85,8 +85,8 @@ window.VigiaDemo = (function () {
 
   // Qualidade dos colaboradores (Sucesso do Cliente) — mesmo formato de
   // `colaboradores_qualidade` do endpoint de métricas. Valores fictícios.
-  function colaboradoresQualidadeDemo(r) {
-    var nomes = NOMES.slice(0, 9);
+  function colaboradoresQualidadeDemo(r, soNome) {
+    var nomes = ['Ana Bueno', 'Isabella Almeida', 'Jackson Santos', 'Juliana Lopes Miranda', 'Marianna Martins', 'Matheus Lang', 'Matheus Rodrigues', 'Rafaela Espósito'];
     var pesos = { Objetividade: 15, Simplicidade: 10, Velocidade: 30, Previsibilidade: 15, 'Coerência do atendimento': 20, 'Checagem de entendimento': 10 };
     function mediaCrit(avals, base) {
       // algumas combinações não se aplicam: a média fica nula (nunca zero)
@@ -95,7 +95,7 @@ window.VigiaDemo = (function () {
       return { media: Math.min(100, Math.max(0, base + r(-14, 12))), quantidade: q };
     }
     var colaboradores = nomes.map(function (nome, i) {
-      var avals = i === 8 ? 3 : r(8, 60);
+      var avals = i === 2 ? 3 : r(8, 60);
       var base = r(52, 96);
       var criterios = CRITERIOS_HUMANO.map(function (c) {
         var m = mediaCrit(avals, base);
@@ -106,6 +106,7 @@ window.VigiaDemo = (function () {
       var nota = somaPeso ? validos.reduce(function (a, c) { return a + c.media * pesos[c.criterio]; }, 0) / somaPeso / 100 * 4 : null;
       return { colaborador: nome, avaliacoes: avals, media_nota: nota == null ? null : Math.round(nota * 100) / 100, criterios: criterios };
     });
+    if (soNome) colaboradores = colaboradores.filter(function (c) { return c.colaborador === soNome; });
     var totalAvals = colaboradores.reduce(function (a, c) { return a + c.avaliacoes; }, 0);
     var equipeCrit = CRITERIOS_HUMANO.map(function (nome, k) {
       var q = 0, s = 0;
@@ -117,8 +118,8 @@ window.VigiaDemo = (function () {
       escala_max: 4,
       criterios: CRITERIOS_HUMANO.slice(),
       colaboradores: colaboradores,
-      equipe: { avaliacoes: totalAvals, media_nota: Math.round(notaEquipe * 100) / 100, criterios: equipeCrit },
-      fora_do_grafico: { sem_colaborador_identificado: r(0, 6), escala_anterior: r(0, 8) }
+      equipe: soNome ? null : { avaliacoes: totalAvals, media_nota: Math.round(notaEquipe * 100) / 100, criterios: equipeCrit },
+      fora_do_grafico: { sem_colaborador_identificado: r(0, 6), outros_colaboradores: r(0, 9), escala_anterior: r(0, 8) }
     };
   }
 
@@ -210,7 +211,7 @@ window.VigiaDemo = (function () {
       }
     };
 
-    if (agente === 'sucesso') base.colaboradores_qualidade = colaboradoresQualidadeDemo(r);
+    if (agente === 'sucesso') base.colaboradores_qualidade = colaboradoresQualidadeDemo(r, opcoes && opcoes.colaboradorNome);
 
     if (agente === 'sdr' || agente === 'fechamento') {
       base.kpis.qualificacoes = qualificados;
