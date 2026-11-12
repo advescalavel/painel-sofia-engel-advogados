@@ -52,12 +52,21 @@ Cada IA tem a sua Visão geral:
   - KPIs separados em **No período** (atendimentos, taxa de resolução,
     atendimentos críticos, falhas críticas da IA, clientes insatisfeitos) e **Agora** (riscos operacionais ativos: janela de 24h
     encerrando + sem resposta há +1h);
-  - **Evolução da taxa de resolução** (linha): nota média por desfecho —
-    resolvidos pela IA, transferidos, iniciados e atendidos por humano — com a
-    taxa de resolução tracejada; volumes no tooltip;
-  - **Qualidade**: distribuição dos atendimentos por faixa (Crítico 0–49,
-    Regular 50–69, Bom 70–84, Excelente 85–100), desempenho por critério (pior
-    primeiro, dinâmico pelo componente avaliado) e motivos de falha crítica;
+  - **Qualidade dos colaboradores** (bloco no topo, no lugar de "Evolução"):
+    - *Média geral de avaliação por colaborador* — barras horizontais com a nota
+      de 0 a 4 (2 casas), cor pela faixa gerencial, quantidade de avaliações ao
+      lado e a **média da equipe** como referência;
+    - *Média por critério e colaborador* — matriz colaborador × 6 critérios
+      (Objetividade, Simplicidade, Velocidade, Previsibilidade, Coerência do
+      atendimento, Checagem de entendimento), nota 0–100 por critério, cor pela
+      faixa; critério não aplicável aparece como "—", nunca como zero;
+    - *Motivos de falha crítica* (da IA), que segue no bloco;
+    - só colaboradores **humanos**; só avaliações da metodologia nova (0–4);
+      segue todos os filtros da tela (ver contrato abaixo);
+    - saíram da Visão geral: a linha "Evolução da taxa de resolução", a
+      distribuição por faixa e o desempenho por critério da IA (a distribuição
+      por faixa continua na aba **Qualidade da IA**; o pior critério da IA segue
+      em "Onde agir").
   - **Diagnóstico**: efetividade por tipo de atendimento (ou volume por tipo,
     enquanto `nota_media` não vier) e motivos de transferência;
   - **Riscos operacionais** (painel destacado): alertas por tipo e evolução
@@ -173,6 +182,43 @@ eles a Visão geral cai no comportamento descrito entre parênteses.
   "tipos_atendimento": [{ "tipo": "…", "quantidade": 0, "nota_media": 0 }]  // sem nota: volume por tipo
 }
 ```
+
+### `colaboradores_qualidade` (métricas · só Sucesso do Cliente)
+
+Alimenta os dois gráficos de Qualidade dos colaboradores. Vem da mesma view da
+aba Atendimentos (`vw_qualidade_humana_sucesso_cliente`), com o mesmo join ao
+atendimento e os mesmos filtros (período + `base_data`, `status`, `avaliado`,
+`tipo_atendimento`, `motivo_transferencia`, `motivo_falha`, `criterio`,
+`criterio_colaborador`, `criterio_resultado`, `falha_colaborador`,
+`score_min`/`score_max`). `colaborador=ia` ou `componente=ia` devolvem lista
+vazia. Nada é recalculado: a nota geral é a média de `nota_colaborador_4pts`
+(0–4, já com pesos e renormalização do Vigia) e cada critério é a média do seu
+`*_score` (0–100) **só dos atendimentos em que foi avaliado**.
+
+```jsonc
+"colaboradores_qualidade": {
+  "escala_max": 4,
+  "criterios": ["Objetividade", "Simplicidade", "Velocidade", "Previsibilidade",
+                "Coerência do atendimento", "Checagem de entendimento"],
+  "colaboradores": [{
+    "colaborador": "…", "avaliacoes": 95, "media_nota": 2.84,
+    "criterios": [{ "criterio": "Objetividade", "media": 69.6, "quantidade": 85 }]  // media null = não aplicável
+  }],
+  "equipe": { "avaliacoes": 497, "media_nota": 3.36, "criterios": [ … ] },        // mesma base dos colaboradores listados
+  "fora_do_grafico": { "sem_colaborador_identificado": 46, "escala_anterior": 65 }
+}
+```
+
+Entram só avaliações da metodologia nova (`escala_score = 4`) já auditadas
+(as de escala 0–100 não se misturam com 0–4; as "aguardando prazo" ainda não têm
+nota). Ficam fora, e são contadas em `fora_do_grafico`, as avaliações sem nome de
+colaborador ou com a conta genérica do portal (`NOMES_NAO_COLABORADOR` no node
+"Montar SQL Métricas"). Sem o campo na resposta (API antiga), o painel mostra
+um aviso em vez dos gráficos.
+
+Sinalização visual (não exclui dado): colaborador com menos de 5 avaliações e
+critério com menos de 3 aparecem esmaecidos (`MIN_AVALIACOES_COLABORADOR` e
+`MIN_AVALIACOES_CRITERIO` no `app.js`).
 
 ## Nova metodologia do colaborador (Sucesso do Cliente) — vigia-cs-v8.0
 
